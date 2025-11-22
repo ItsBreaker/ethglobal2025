@@ -14,12 +14,15 @@
   },
   "dependencies": {
     "@coinbase/x402": "^0.7.3",
+    "@edgeandnode/amp": "^0.0.51",
     "@opennextjs/cloudflare": "^1.13.1",
+    "@privy-io/chains": "^0.0.5",
+    "@privy-io/react-auth": "^3.8.0",
     "ethers": "^6.9.0",
     "next": "^16.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "viem": "^2.0.0",
+    "viem": "^2.39.3",
     "x402-next": "^0.7.3"
   },
   "devDependencies": {

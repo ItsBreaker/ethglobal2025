@@ -17,7 +17,7 @@ const GUARD_ABI = [
   "function getRemainingDailyBudget() view returns (uint256)",
   "function agent() view returns (address)",
   "function owner() view returns (address)",
-];
+] as const;
 
 const app = express();
 app.use(cors());
@@ -41,6 +41,13 @@ interface X402PaymentRequired {
 interface ProxyRequest extends Request {
   guardAddress?: string;
   targetUrl?: string;
+}
+
+// ============ Helper ============
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getGuardContract(address: string, signerOrProvider?: ethers.Wallet | ethers.JsonRpcProvider): any {
+  return new ethers.Contract(address, GUARD_ABI, signerOrProvider || provider);
 }
 
 // ============ Middleware ============
@@ -89,7 +96,7 @@ app.get("/health", (req, res) => {
 app.get("/guard/:guardAddress/info", async (req, res) => {
   try {
     const { guardAddress } = req.params;
-    const guard = new ethers.Contract(guardAddress, GUARD_ABI, provider);
+    const guard = getGuardContract(guardAddress);
 
     const [balance, dailySpent, dailyLimit, maxPerTx, approvalThreshold, remaining, agent, owner] = 
       await Promise.all([
@@ -114,8 +121,9 @@ app.get("/guard/:guardAddress/info", async (req, res) => {
       agent,
       owner,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: "contract_error", message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "contract_error", message });
   }
 });
 
@@ -134,7 +142,7 @@ app.post("/guard/:guardAddress/check", async (req, res) => {
       });
     }
 
-    const guard = new ethers.Contract(guardAddress, GUARD_ABI, provider);
+    const guard = getGuardContract(guardAddress);
     const amountWei = ethers.parseUnits(amount.toString(), 6);
     const endpointHash = ethers.keccak256(ethers.toUtf8Bytes(endpoint));
 
@@ -147,8 +155,9 @@ app.post("/guard/:guardAddress/check", async (req, res) => {
       amount,
       endpoint,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: "contract_error", message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "contract_error", message });
   }
 });
 
@@ -165,14 +174,18 @@ app.all("/guard/:guardAddress/*", parseProxyUrl, async (req: ProxyRequest, res) 
   console.log(`   Method: ${req.method}`);
 
   try {
+    // Build headers for target request
+    const targetHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (req.headers.authorization) {
+      targetHeaders["Authorization"] = req.headers.authorization as string;
+    }
+
     // Step 1: Forward request to target API
     const targetResponse = await fetch(targetUrl, {
       method: req.method,
-      headers: {
-        "Content-Type": "application/json",
-        // Forward relevant headers
-        ...(req.headers.authorization && { Authorization: req.headers.authorization as string }),
-      },
+      headers: targetHeaders,
       body: ["POST", "PUT", "PATCH"].includes(req.method) ? JSON.stringify(req.body) : undefined,
     });
 
@@ -199,7 +212,7 @@ app.all("/guard/:guardAddress/*", parseProxyUrl, async (req: ProxyRequest, res) 
     console.log(`   Pay to: ${paymentInfo.address}`);
 
     // Step 4: Check if payment is allowed by guard policy
-    const guard = new ethers.Contract(guardAddress, GUARD_ABI, provider);
+    const guard = getGuardContract(guardAddress);
     const amountWei = ethers.parseUnits(paymentInfo.amount, 6);
     const endpointHash = ethers.keccak256(ethers.toUtf8Bytes(targetUrl));
 
@@ -245,7 +258,7 @@ app.all("/guard/:guardAddress/*", parseProxyUrl, async (req: ProxyRequest, res) 
 
     console.log(`   ✅ Policy check passed, executing payment...`);
     
-    const guardWithSigner = guard.connect(agentWallet);
+    const guardWithSigner = getGuardContract(guardAddress, agentWallet);
     
     try {
       const tx = await guardWithSigner.executePayment(
@@ -255,11 +268,12 @@ app.all("/guard/:guardAddress/*", parseProxyUrl, async (req: ProxyRequest, res) 
       );
       const receipt = await tx.wait();
       console.log(`   💸 Payment executed: ${receipt?.hash}`);
-    } catch (paymentError: any) {
-      console.log(`   ❌ Payment failed: ${paymentError.message}`);
+    } catch (paymentError: unknown) {
+      const message = paymentError instanceof Error ? paymentError.message : "Unknown error";
+      console.log(`   ❌ Payment failed: ${message}`);
       return res.status(500).json({
         error: "payment_failed",
-        message: paymentError.message,
+        message,
       });
     }
 
@@ -268,17 +282,21 @@ app.all("/guard/:guardAddress/*", parseProxyUrl, async (req: ProxyRequest, res) 
     // For this demo, we'll simulate the API accepting the payment
     console.log(`   🔄 Retrying request after payment...`);
     
+    const retryHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-PAYMENT": "payment-proof-would-go-here", // Simplified for demo
+    };
+    if (req.headers.authorization) {
+      retryHeaders["Authorization"] = req.headers.authorization as string;
+    }
+
     const retriedResponse = await fetch(targetUrl, {
       method: req.method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-PAYMENT": "payment-proof-would-go-here", // Simplified for demo
-        ...(req.headers.authorization && { Authorization: req.headers.authorization as string }),
-      },
+      headers: retryHeaders,
       body: ["POST", "PUT", "PATCH"].includes(req.method) ? JSON.stringify(req.body) : undefined,
     });
 
-    const finalData = await retriedResponse.json();
+    const finalData = await retriedResponse.json() as Record<string, unknown>;
     console.log(`   ✅ Request completed`);
     
     res.status(retriedResponse.status).json({
@@ -290,11 +308,12 @@ app.all("/guard/:guardAddress/*", parseProxyUrl, async (req: ProxyRequest, res) 
       },
     });
 
-  } catch (error: any) {
-    console.error(`   ❌ Error:`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`   ❌ Error:`, message);
     res.status(500).json({
       error: "proxy_error",
-      message: error.message,
+      message,
     });
   }
 });
