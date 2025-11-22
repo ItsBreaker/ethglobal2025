@@ -1,10 +1,28 @@
-// app/src/lib/amp.ts
-// AMP client for querying guard data
+// packages/dashboard/src/lib/amp.ts
+// AMP client for querying guard data from hosted playground
 
-const AMP_ENDPOINT = process.env.NEXT_PUBLIC_AMP_ENDPOINT || "http://localhost:1603";
+// ============================================
+// CONFIGURATION
+// ============================================
+
+// For local development: http://localhost:1603
+// For hosted playground: https://playground.amp.thegraph.com
+const AMP_ENDPOINT = process.env.NEXT_PUBLIC_AMP_ENDPOINT || "https://playground.amp.thegraph.com";
+
+// Dataset format: "namespace/name@version"
+// - @dev for local development
+// - @latest or @1.0.0 for published datasets
+// For hackathon, you'll publish your dataset and use something like:
+// "your-team/x402-guard@latest" or "your-team/x402-guard@0.1.0"
 const DATASET = process.env.NEXT_PUBLIC_AMP_DATASET || "x402/guard@dev";
 
-// ===== Types =====
+// The anvil dataset provides raw blockchain data (blocks, transactions, logs)
+// On hosted playground, use the appropriate chain dataset
+const CHAIN_DATASET = process.env.NEXT_PUBLIC_AMP_CHAIN_DATASET || "_/base-sepolia@latest";
+
+// ============================================
+// TYPES
+// ============================================
 
 export interface GuardConfig {
   wallet: string;
@@ -53,39 +71,92 @@ export interface WalletStats {
   pendingApprovals: number;
 }
 
-// ===== AMP Query Helper =====
+// ============================================
+// AMP QUERY HELPER
+// ============================================
 
-async function query<T = any>(sql: string): Promise<T[]> {
-  const response = await fetch(AMP_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: sql,
-  });
+/**
+ * Execute a SQL query against the AMP endpoint
+ * Returns JSON Lines (one JSON object per line)
+ */
+async function query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
+  console.log("[AMP] Querying:", sql.slice(0, 100) + "...");
+  console.log("[AMP] Endpoint:", AMP_ENDPOINT);
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("AMP query failed:", error);
-    throw new Error(`AMP query failed: ${response.status}`);
+  try {
+    const response = await fetch(AMP_ENDPOINT, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "text/plain",
+        // Some hosted endpoints may require auth
+        // "Authorization": `Bearer ${process.env.AMP_API_KEY}`,
+      },
+      body: sql,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("[AMP] Query failed:", response.status, error);
+      throw new Error(`AMP query failed: ${response.status} - ${error}`);
+    }
+
+    // AMP returns JSON Lines (one JSON object per line)
+    const text = await response.text();
+    if (!text.trim()) {
+      console.log("[AMP] Empty response");
+      return [];
+    }
+
+    const results = text
+      .trim()
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          console.error("[AMP] Failed to parse line:", line);
+          return null;
+        }
+      })
+      .filter((item): item is T => item !== null);
+
+    console.log("[AMP] Got", results.length, "results");
+    return results;
+  } catch (error) {
+    console.error("[AMP] Query error:", error);
+    throw error;
   }
-
-  // AMP returns JSON Lines (one JSON object per line)
-  const text = await response.text();
-  if (!text.trim()) return [];
-
-  return text
-    .trim()
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line));
 }
 
-// ===== Query Functions =====
+/**
+ * Check if AMP is reachable
+ */
+export async function checkConnection(): Promise<boolean> {
+  try {
+    const result = await query<{ result: number }>("SELECT 1 as result");
+    return result.length > 0 && result[0].result === 1;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================
+// QUERY FUNCTIONS
+// ============================================
 
 /**
  * Get the latest config for a wallet
  */
 export async function getConfig(wallet: string): Promise<GuardConfig | null> {
-  const results = await query<any>(`
+  const results = await query<{
+    wallet: string;
+    daily_limit: string | number;
+    max_per_transaction: string | number;
+    approval_threshold: string | number;
+    allow_all_endpoints: boolean;
+    timestamp: string | number;
+  }>(`
     SELECT 
       wallet,
       daily_limit,
@@ -118,7 +189,11 @@ export async function getConfig(wallet: string): Promise<GuardConfig | null> {
  */
 export async function getEndpoints(wallet: string): Promise<Endpoint[]> {
   // Get all added endpoints that haven't been removed
-  const results = await query<any>(`
+  const results = await query<{
+    wallet: string;
+    endpoint: string;
+    added_at: string | number;
+  }>(`
     WITH added AS (
       SELECT wallet, endpoint, timestamp as added_at
       FROM "${DATASET}".endpoint_added
@@ -158,7 +233,13 @@ export async function isEndpointActive(wallet: string, endpoint: string): Promis
  * Pending = requested but not resolved
  */
 export async function getPendingApprovals(wallet: string): Promise<PendingApproval[]> {
-  const results = await query<any>(`
+  const results = await query<{
+    approval_id: string | number;
+    wallet: string;
+    amount: string | number;
+    endpoint: string;
+    requested_at: string | number;
+  }>(`
     WITH requested AS (
       SELECT approval_id, wallet, amount, endpoint, timestamp as requested_at
       FROM "${DATASET}".approval_requested
@@ -189,7 +270,13 @@ export async function getPendingApprovals(wallet: string): Promise<PendingApprov
  * Get a specific pending approval by ID
  */
 export async function getPendingApproval(approvalId: string): Promise<PendingApproval | null> {
-  const results = await query<any>(`
+  const results = await query<{
+    approval_id: string | number;
+    wallet: string;
+    amount: string | number;
+    endpoint: string;
+    requested_at: string | number;
+  }>(`
     WITH requested AS (
       SELECT approval_id, wallet, amount, endpoint, timestamp as requested_at
       FROM "${DATASET}".approval_requested
@@ -223,7 +310,13 @@ export async function getPendingApproval(approvalId: string): Promise<PendingApp
  * Get successful transactions for a wallet
  */
 export async function getSuccessfulTransactions(wallet: string, limit: number = 50): Promise<Transaction[]> {
-  const results = await query<any>(`
+  const results = await query<{
+    wallet: string;
+    recipient: string;
+    amount: string | number;
+    endpoint: string;
+    timestamp: string | number;
+  }>(`
     SELECT wallet, recipient, amount, endpoint, timestamp
     FROM "${DATASET}".payment_executed
     WHERE wallet = '${wallet.toLowerCase()}'
@@ -245,7 +338,14 @@ export async function getSuccessfulTransactions(wallet: string, limit: number = 
  * Get blocked transactions for a wallet
  */
 export async function getBlockedTransactions(wallet: string, limit: number = 50): Promise<Transaction[]> {
-  const results = await query<any>(`
+  const results = await query<{
+    wallet: string;
+    recipient: string;
+    amount: string | number;
+    endpoint: string;
+    reason: string;
+    timestamp: string | number;
+  }>(`
     SELECT wallet, recipient, amount, endpoint, reason, timestamp
     FROM "${DATASET}".payment_blocked
     WHERE wallet = '${wallet.toLowerCase()}'
@@ -285,7 +385,7 @@ export async function getDailySpending(wallet: string): Promise<string> {
   const now = new Date();
   const todayStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
 
-  const results = await query<any>(`
+  const results = await query<{ total: string | number }>(`
     SELECT COALESCE(SUM(amount), 0) as total
     FROM "${DATASET}".payment_executed
     WHERE wallet = '${wallet.toLowerCase()}'
@@ -304,7 +404,7 @@ export async function getSpendingInPeriod(
   startTimestamp: number,
   endTimestamp: number
 ): Promise<string> {
-  const results = await query<any>(`
+  const results = await query<{ total: string | number }>(`
     SELECT COALESCE(SUM(amount), 0) as total
     FROM "${DATASET}".payment_executed
     WHERE wallet = '${wallet.toLowerCase()}'
@@ -321,22 +421,22 @@ export async function getSpendingInPeriod(
  */
 export async function getWalletStats(wallet: string): Promise<WalletStats> {
   const [successCount, blockedCount, totalSpent, pendingCount] = await Promise.all([
-    query<any>(`
+    query<{ count: number }>(`
       SELECT COUNT(*) as count
       FROM "${DATASET}".payment_executed
       WHERE wallet = '${wallet.toLowerCase()}'
     `),
-    query<any>(`
+    query<{ count: number }>(`
       SELECT COUNT(*) as count
       FROM "${DATASET}".payment_blocked
       WHERE wallet = '${wallet.toLowerCase()}'
     `),
-    query<any>(`
+    query<{ total: number }>(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM "${DATASET}".payment_executed
       WHERE wallet = '${wallet.toLowerCase()}'
     `),
-    query<any>(`
+    query<{ count: number }>(`
       WITH requested AS (
         SELECT approval_id FROM "${DATASET}".approval_requested
         WHERE wallet = '${wallet.toLowerCase()}'
@@ -364,7 +464,14 @@ export async function getWalletStats(wallet: string): Promise<WalletStats> {
  * Get config history for a wallet
  */
 export async function getConfigHistory(wallet: string, limit: number = 10): Promise<GuardConfig[]> {
-  const results = await query<any>(`
+  const results = await query<{
+    wallet: string;
+    daily_limit: string | number;
+    max_per_transaction: string | number;
+    approval_threshold: string | number;
+    allow_all_endpoints: boolean;
+    timestamp: string | number;
+  }>(`
     SELECT 
       wallet,
       daily_limit,
@@ -456,7 +563,9 @@ export async function checkPaymentAllowed(
   return { allowed: true };
 }
 
-// ===== Subscription / Real-time Updates =====
+// ============================================
+// SUBSCRIPTION / REAL-TIME UPDATES
+// ============================================
 
 /**
  * Poll for updates (simple polling approach)
@@ -475,7 +584,7 @@ export function subscribeToWalletUpdates(
         const data = await getWalletData(wallet);
         callback(data);
       } catch (error) {
-        console.error("Error polling wallet data:", error);
+        console.error("[AMP] Error polling wallet data:", error);
       }
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
@@ -486,4 +595,34 @@ export function subscribeToWalletUpdates(
   return () => {
     isRunning = false;
   };
+}
+
+// ============================================
+// RAW CHAIN DATA QUERIES (from base-sepolia dataset)
+// ============================================
+
+/**
+ * Get recent logs for a contract address
+ * Useful for debugging or showing raw events
+ */
+export async function getContractLogs(contractAddress: string, limit: number = 20) {
+  return query(`
+    SELECT *
+    FROM ${CHAIN_DATASET}.logs
+    WHERE address = '${contractAddress.toLowerCase()}'
+    ORDER BY block_num DESC
+    LIMIT ${limit}
+  `);
+}
+
+/**
+ * Get recent blocks
+ */
+export async function getRecentBlocks(limit: number = 10) {
+  return query(`
+    SELECT block_num, hash, timestamp, gas_used
+    FROM ${CHAIN_DATASET}.blocks
+    ORDER BY block_num DESC
+    LIMIT ${limit}
+  `);
 }
