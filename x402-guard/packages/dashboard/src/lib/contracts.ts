@@ -2,15 +2,8 @@
 // Update these after deployment
 
 export const CONTRACTS = {
-  // Localhost (Hardhat)
-  31337: {
-    usdc: "",      // Set after running deploy:local
-    factory: "",   // Set after running deploy:local
-  },
-  // Base Sepolia
   84532: {
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    factory: "",   // Set after deployment
   },
 };
 
@@ -33,7 +26,7 @@ export const GUARD_ABI = [
   "function isEndpointAllowedByUrl(string url) view returns (bool)",
   "function checkPayment(uint256 amount, bytes32 endpointHash) view returns (bool allowed, bool needsApproval, string reason)",
   "function getPendingPayment(uint256 paymentId) view returns (tuple(address to, uint256 amount, bytes32 endpointHash, uint256 expiry, bool executed, bool rejected))",
-  
+
   // Write functions
   "function setPolicy(uint256 maxPerTransaction, uint256 dailyLimit, uint256 approvalThreshold)",
   "function setAgent(address agent)",
@@ -46,7 +39,7 @@ export const GUARD_ABI = [
   "function withdraw(uint256 amount)",
   "function withdrawAll()",
   "function executePayment(address to, uint256 amount, bytes32 endpointHash) returns (bool success, uint256 paymentId)",
-  
+
   // Events
   "event PolicyUpdated(uint256 maxPerTx, uint256 dailyLimit, uint256 approvalThreshold)",
   "event AgentUpdated(address indexed oldAgent, address indexed newAgent)",

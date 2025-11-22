@@ -10,9 +10,12 @@
     "lint": "next lint",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "generate-wallet": "tsx scripts/generate-demo-wallet.ts"
   },
   "dependencies": {
+    "@base-org/account": "^2.5.0",
+    "@base-org/account-ui": "^1.0.1",
     "@opennextjs/cloudflare": "^1.13.1",
     "ethers": "^6.9.0",
     "next": "^16.0.3",
