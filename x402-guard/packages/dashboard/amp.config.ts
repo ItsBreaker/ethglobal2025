@@ -1,35 +1,69 @@
 // amp.config.ts
-// AMP dataset configuration for x402-Guard
-// This automatically creates SQL tables from your contract events
+// AMP Dataset configuration for x402-Guard
+// This file defines how your contract events become SQL tables
 
 import { defineDataset, eventTables } from "@edgeandnode/amp";
-// @ts-ignore
-import { abi } from "./app/src/lib/abi.ts";
+
+// Import your contract ABI
+// Make sure to export the ABI from your contracts package
+// @ts-ignore - ABI import
+import { abi as guardAbi } from "./packages/contracts/artifacts/contracts/X402Guard.sol/X402Guard.json";
+// @ts-ignore - ABI import  
+import { abi as factoryAbi } from "./packages/contracts/artifacts/contracts/X402GuardFactory.sol/X402GuardFactory.json";
 
 export default defineDataset(() => {
   // Auto-generate tables from contract events
-  // This creates tables: config_set, endpoint_added, endpoint_removed, etc.
-  const baseTables = eventTables(abi);
+  const guardTables = eventTables(guardAbi);
+  const factoryTables = eventTables(factoryAbi);
 
   return {
+    // Your namespace - use underscore for local, your team name for published
     namespace: "x402",
+    
+    // Dataset name
     name: "guard",
-    network: "anvil", // Change to "base-sepolia" or "base" for production
-    description: "x402 Guard - User policies, endpoints, and transaction history",
-
+    
+    // Network - use "anvil" for local, "base-sepolia" for testnet
+    network: "base-sepolia",
+    
+    // Description shown in AMP Studio
+    description: "x402-Guard payment control events for AI agents",
+    
+    // Dependencies - access to raw blockchain data
     dependencies: {
-      // Access to raw blockchain data (blocks, transactions, logs)
-      anvil: "_/anvil@0.0.1",
+      // For Base Sepolia, use the hosted chain dataset
+      "base-sepolia": "_/base-sepolia@latest",
     },
-
+    
+    // Tables derived from your contract events
     tables: {
-      // Auto-generated event tables
-      ...baseTables,
-
-      // ===== Derived Tables (pre-computed views for faster queries) =====
-
-      // Latest config for each wallet (most recent ConfigSet event)
-      latest_configs: {
+      // ==========================================
+      // AUTO-GENERATED FROM GUARD CONTRACT EVENTS
+      // ==========================================
+      // These are created automatically from eventTables(abi)
+      // Event: ConfigSet(address indexed wallet, uint256 dailyLimit, uint256 maxPerTransaction, uint256 approvalThreshold, bool allowAllEndpoints)
+      // Event: EndpointAdded(address indexed wallet, string endpoint)
+      // Event: EndpointRemoved(address indexed wallet, string endpoint)
+      // Event: PaymentExecuted(address indexed wallet, address recipient, uint256 amount, string endpoint)
+      // Event: PaymentBlocked(address indexed wallet, address recipient, uint256 amount, string endpoint, string reason)
+      // Event: ApprovalRequested(uint256 indexed approvalId, address indexed wallet, uint256 amount, string endpoint)
+      // Event: ApprovalResolved(uint256 indexed approvalId, address indexed wallet, bool approved)
+      // Event: Funded(address indexed wallet, uint256 amount)
+      // Event: Withdrawn(address indexed wallet, uint256 amount)
+      ...guardTables,
+      
+      // ==========================================
+      // AUTO-GENERATED FROM FACTORY CONTRACT EVENTS
+      // ==========================================
+      // Event: GuardCreated(address indexed owner, address indexed agent, address guard, uint256 dailyLimit, uint256 maxPerTransaction, uint256 approvalThreshold)
+      ...factoryTables,
+      
+      // ==========================================
+      // CUSTOM DERIVED TABLES
+      // ==========================================
+      
+      // Active guards with their latest config
+      active_guards: {
         sql: `
           SELECT DISTINCT ON (wallet)
             wallet,
@@ -37,77 +71,110 @@ export default defineDataset(() => {
             max_per_transaction,
             approval_threshold,
             allow_all_endpoints,
-            timestamp,
-            block_num
-          FROM guard.config_set
-          ORDER BY wallet, block_num DESC, log_index DESC
+            timestamp as last_updated
+          FROM config_set
+          ORDER BY wallet, timestamp DESC
         `,
       },
-
-      // Active endpoints per wallet (added but not removed)
-      active_endpoints: {
+      
+      // Daily spending summary per wallet
+      daily_spending: {
         sql: `
-          SELECT 
-            a.wallet,
-            a.endpoint,
-            a.timestamp as added_at,
-            a.block_num
-          FROM guard.endpoint_added a
-          LEFT JOIN guard.endpoint_removed r 
-            ON a.wallet = r.wallet 
-            AND a.endpoint = r.endpoint 
-            AND r.block_num > a.block_num
-          WHERE r.wallet IS NULL
-        `,
-      },
-
-      // Pending approvals (requested but not resolved)
-      pending_approvals: {
-        sql: `
-          SELECT 
-            r.approval_id,
-            r.wallet,
-            r.amount,
-            r.endpoint,
-            r.timestamp as requested_at
-          FROM guard.approval_requested r
-          LEFT JOIN guard.approval_resolved res 
-            ON r.approval_id = res.approval_id
-          WHERE res.approval_id IS NULL
-        `,
-      },
-
-      // All transactions (successful payments)
-      transactions: {
-        sql: `
-          SELECT 
+          SELECT
             wallet,
-            recipient,
-            amount,
-            endpoint,
-            'success' as status,
-            NULL as block_reason,
-            timestamp,
-            block_num
-          FROM guard.payment_executed
+            DATE(TO_TIMESTAMP(timestamp)) as date,
+            SUM(amount) as total_spent,
+            COUNT(*) as transaction_count
+          FROM payment_executed
+          GROUP BY wallet, DATE(TO_TIMESTAMP(timestamp))
         `,
       },
-
-      // Blocked transactions
-      blocked_transactions: {
+      
+      // Blocked payment reasons summary
+      block_reasons: {
         sql: `
-          SELECT 
+          SELECT
             wallet,
-            recipient,
-            amount,
+            reason,
+            COUNT(*) as count,
+            SUM(amount) as total_blocked_amount
+          FROM payment_blocked
+          GROUP BY wallet, reason
+        `,
+      },
+      
+      // Endpoint usage stats
+      endpoint_stats: {
+        sql: `
+          SELECT
+            wallet,
             endpoint,
-            'blocked' as status,
-            reason as block_reason,
-            timestamp,
-            block_num
-          FROM guard.payment_blocked
+            COUNT(*) as usage_count,
+            SUM(amount) as total_spent,
+            MAX(timestamp) as last_used
+          FROM payment_executed
+          GROUP BY wallet, endpoint
         `,
       },
     },
   };
 });
+
+// ==========================================
+// EXPECTED CONTRACT EVENTS (for reference)
+// ==========================================
+// 
+// Your X402Guard.sol should emit these events:
+//
+// event ConfigSet(
+//     address indexed wallet,
+//     uint256 dailyLimit,
+//     uint256 maxPerTransaction,
+//     uint256 approvalThreshold,
+//     bool allowAllEndpoints
+// );
+//
+// event EndpointAdded(address indexed wallet, string endpoint);
+// event EndpointRemoved(address indexed wallet, string endpoint);
+//
+// event PaymentExecuted(
+//     address indexed wallet,
+//     address recipient,
+//     uint256 amount,
+//     string endpoint
+// );
+//
+// event PaymentBlocked(
+//     address indexed wallet,
+//     address recipient,
+//     uint256 amount,
+//     string endpoint,
+//     string reason
+// );
+//
+// event ApprovalRequested(
+//     uint256 indexed approvalId,
+//     address indexed wallet,
+//     uint256 amount,
+//     string endpoint
+// );
+//
+// event ApprovalResolved(
+//     uint256 indexed approvalId,
+//     address indexed wallet,
+//     bool approved
+// );
+//
+// event Funded(address indexed wallet, uint256 amount);
+// event Withdrawn(address indexed wallet, uint256 amount);
+//
+// Your X402GuardFactory.sol should emit:
+//
+// event GuardCreated(
+//     address indexed owner,
+//     address indexed agent,
+//     address guard,
+//     uint256 dailyLimit,
+//     uint256 maxPerTransaction,
+//     uint256 approvalThreshold
+// );
