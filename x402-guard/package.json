@@ -1,0 +1,22 @@
+{
+  "name": "x402-guard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "dev:contracts": "pnpm --filter @x402-guard/contracts dev",
+    "dev:proxy": "pnpm --filter @x402-guard/proxy dev",
+    "dev:dashboard": "pnpm --filter @x402-guard/dashboard dev",
+    "build": "pnpm run --parallel build",
+    "test": "pnpm --filter @x402-guard/contracts test",
+    "deploy:local": "pnpm --filter @x402-guard/contracts deploy:local",
+    "node": "pnpm --filter @x402-guard/contracts node"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
