@@ -17,21 +17,14 @@ export const middleware = paymentMiddleware(
       config: {
         description: 'Test endpoint demonstrating x402 payment integration',
         inputSchema: {
-          type: "object",
-          properties: {
-            message: {
-              type: "string",
-              description: "Optional message parameter"
-            }
+          queryParams: {
+            message: "string"
           }
         },
         outputSchema: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            data: { type: "string" },
-            timestamp: { type: "number" }
-          }
+          success: "boolean",
+          data: "string",
+          timestamp: "number"
         }
       }
     },
@@ -43,10 +36,7 @@ export const middleware = paymentMiddleware(
       config: {
         description: 'Access to mock API base endpoint',
         outputSchema: {
-          type: "object",
-          properties: {
-            result: { type: "object" }
-          }
+          result: "object"
         }
       }
     },
@@ -57,20 +47,14 @@ export const middleware = paymentMiddleware(
       config: {
         description: 'Get mock weather data with x402 payment protection',
         outputSchema: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            message: { type: "string" },
-            data: {
-              type: "object",
-              properties: {
-                weather: { type: "string" },
-                temperature: { type: "number" },
-                humidity: { type: "number" },
-                windSpeed: { type: "number" },
-                timestamp: { type: "string" }
-              }
-            }
+          success: "boolean",
+          message: "string",
+          data: {
+            weather: "string",
+            temperature: "number",
+            humidity: "number",
+            windSpeed: "number",
+            timestamp: "string"
           }
         }
       }
@@ -82,11 +66,8 @@ export const middleware = paymentMiddleware(
       config: {
         description: 'Get mock data with x402 payment protection',
         outputSchema: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            data: { type: "object" }
-          }
+          success: "boolean",
+          data: "object"
         }
       }
     }
