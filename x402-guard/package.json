@@ -18,5 +18,9 @@
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@coinbase/x402": "^0.7.3",
+    "x402-next": "^0.7.3"
   }
 }
