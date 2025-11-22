@@ -511,14 +511,39 @@ export function useCreateGuard() {
       dailyLimit: string,
       approvalThreshold: string
     ): Promise<Address | null> => {
-      if (!walletClient || !publicClient || !address || !chainId) {
-        setError("Wallet not connected");
+      // Debug logging
+      console.log("createGuard called with:", {
+        walletClient: !!walletClient,
+        publicClient: !!publicClient,
+        address,
+        chainId,
+      });
+
+      if (!address) {
+        setError("Please connect your wallet first");
+        return null;
+      }
+
+      if (!chainId) {
+        setError("Unable to detect chain. Please reconnect your wallet.");
+        return null;
+      }
+
+      // Check if on supported chain
+      const supportedChains = [31337, 84532];
+      if (!supportedChains.includes(chainId)) {
+        setError(`Unsupported chain (${chainId}). Please switch to Base Sepolia (chain ID: 84532)`);
+        return null;
+      }
+
+      if (!walletClient || !publicClient) {
+        setError("Wallet client not initialized. Try disconnecting and reconnecting.");
         return null;
       }
 
       const contracts = CONTRACTS[chainId as keyof typeof CONTRACTS];
       if (!contracts?.factory) {
-        setError("Factory contract not configured for this chain");
+        setError(`Factory contract not configured for chain ${chainId}. Please add it to CONTRACTS in lib/contracts.ts`);
         return null;
       }
 

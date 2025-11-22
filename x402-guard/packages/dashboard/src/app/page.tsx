@@ -5,6 +5,7 @@ import { Address } from "viem";
 import { useWeb3 } from "./providers";
 import { useGuard, useUserGuards, useCreateGuard, Transaction } from "./hooks";
 
+
 // Icons
 const CheckIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -74,7 +75,7 @@ function NotConnectedView() {
 // No guards view - prompt to create
 function NoGuardsView() {
   const { createGuard, isCreating, error } = useCreateGuard();
-  const { address } = useWeb3();
+  const { address, chainId, isSupported } = useWeb3();
   const [showCreate, setShowCreate] = useState(false);
   const [formData, setFormData] = useState({
     agent: "",
@@ -95,6 +96,32 @@ function NoGuardsView() {
     }
   };
 
+  // Show chain warning if not on supported network
+  if (!isSupported && chainId) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-warning-muted flex items-center justify-center mx-auto mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-semibold mb-3 text-warning">Wrong Network</h2>
+        <p className="text-fg-secondary mb-4">
+          You&apos;re connected to chain ID: <code className="bg-bg-elevated px-2 py-1 rounded">{chainId}</code>
+        </p>
+        <p className="text-fg-muted mb-8 max-w-md mx-auto">
+          Please switch to Base Sepolia (84532) in your wallet to use x402-Guard.
+        </p>
+        <div className="text-sm text-fg-muted">
+          <p>Supported networks:</p>
+          <p className="font-mono mt-2">Base Sepolia (84532) • Hardhat (31337)</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!showCreate) {
     return (
       <div className="card p-12 text-center">
@@ -106,9 +133,14 @@ function NoGuardsView() {
           </svg>
         </div>
         <h2 className="text-2xl font-semibold mb-3">No Guards Yet</h2>
-        <p className="text-fg-secondary mb-8 max-w-md mx-auto">
+        <p className="text-fg-secondary mb-4 max-w-md mx-auto">
           Create your first Guard wallet to start protecting your AI agent payments with spending limits and endpoint controls.
         </p>
+        {chainId && (
+          <p className="text-xs text-fg-muted mb-8">
+            Connected to chain: {chainId === 84532 ? "Base Sepolia" : chainId === 31337 ? "Hardhat" : chainId}
+          </p>
+        )}
         <button 
           onClick={() => setShowCreate(true)}
           className="btn-primary text-base px-8 py-3"
@@ -690,6 +722,37 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
   );
 }
 
+function DebugChainInfo() {
+  const { chainId, address, isConnected, publicClient, walletClient } = useWeb3();
+  const [rawChainId, setRawChainId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getDirectChainId = async () => {
+      if (typeof window !== "undefined" && window.ethereum) {
+        try {
+          const hex = await window.ethereum.request({ method: "eth_chainId" });
+          setRawChainId(`${hex} (${parseInt(hex, 16)})`);
+        } catch (e) {
+          setRawChainId("error fetching");
+        }
+      }
+    };
+    getDirectChainId();
+  }, []);
+
+  return (
+    <div className="card p-4 mb-4 bg-yellow-900/20 border-yellow-500/50 text-sm font-mono">
+      <p><strong>DEBUG INFO</strong></p>
+      <p>Context chainId: {chainId ?? "null"}</p>
+      <p>Direct from wallet: {rawChainId ?? "loading..."}</p>
+      <p>Address: {address ?? "null"}</p>
+      <p>isConnected: {String(isConnected)}</p>
+      <p>publicClient: {publicClient ? "✓" : "✗"}</p>
+      <p>walletClient: {walletClient ? "✓" : "✗"}</p>
+    </div>
+  );
+}
+
 // Main page component
 export default function Home() {
   const { isConnected, address } = useWeb3();
@@ -722,6 +785,7 @@ export default function Home() {
 
   return (
     <>
+      <DebugChainInfo /> 
       <GuardSelector 
         guards={guards} 
         selected={selectedGuard} 
