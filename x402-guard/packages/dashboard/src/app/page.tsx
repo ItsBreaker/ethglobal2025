@@ -1,30 +1,9 @@
 "use client";
 
-import { useState } from "react";
-
-// Mock data for demo
-const mockGuardData = {
-  address: "0x1234567890123456789012345678901234567890",
-  balance: "87.50",
-  dailySpent: "12.50",
-  dailyLimit: "50.00",
-  maxPerTransaction: "5.00",
-  approvalThreshold: "2.00",
-  remainingBudget: "37.50",
-  timeUntilReset: "11h 42m",
-};
-
-const mockTransactions = [
-  { id: 1, amount: "0.10", endpoint: "weather.api/forecast", status: "success", time: "2 min ago" },
-  { id: 2, amount: "0.50", endpoint: "api.openai.com/v1/chat", status: "success", time: "5 min ago" },
-  { id: 3, amount: "0.25", endpoint: "news.api/headlines", status: "success", time: "12 min ago" },
-  { id: 4, amount: "10.00", endpoint: "sketchy.api/data", status: "blocked", time: "15 min ago" },
-  { id: 5, amount: "0.15", endpoint: "weather.api/forecast", status: "success", time: "1 hour ago" },
-];
-
-const mockPendingApprovals = [
-  { id: 1, amount: "3.00", endpoint: "api.openai.com/v1/chat", requestedAt: "2 min ago" },
-];
+import { useState, useEffect } from "react";
+import { Address } from "viem";
+import { useWeb3 } from "./providers";
+import { useGuard, useUserGuards, useCreateGuard, Transaction } from "./hooks";
 
 // Icons
 const CheckIcon = () => (
@@ -47,17 +26,357 @@ const CopyIcon = () => (
   </svg>
 );
 
-export default function Home() {
+const LoadingSpinner = () => (
+  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
+// Helper to format time ago
+function timeAgo(timestamp: number): string {
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Not connected view
+function NotConnectedView() {
+  const { connect, isConnecting } = useWeb3();
+
+  return (
+    <div className="card p-12 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-blue-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-accent/20">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <h2 className="text-2xl font-semibold mb-3">Welcome to x402-Guard</h2>
+      <p className="text-fg-secondary mb-8 max-w-md mx-auto">
+        Connect your wallet to manage your AI agent payment guards and set spending policies.
+      </p>
+      <button 
+        onClick={connect}
+        disabled={isConnecting}
+        className="btn-primary text-base px-8 py-3"
+      >
+        {isConnecting ? "Connecting..." : "Connect Wallet"}
+      </button>
+    </div>
+  );
+}
+
+// No guards view - prompt to create
+function NoGuardsView() {
+  const { createGuard, isCreating, error } = useCreateGuard();
+  const { address } = useWeb3();
+  const [showCreate, setShowCreate] = useState(false);
+  const [formData, setFormData] = useState({
+    agent: "",
+    maxPerTransaction: "5",
+    dailyLimit: "50",
+    approvalThreshold: "2",
+  });
+
+  const handleCreate = async () => {
+    const guardAddress = await createGuard(
+      formData.agent as Address,
+      formData.maxPerTransaction,
+      formData.dailyLimit,
+      formData.approvalThreshold
+    );
+    if (guardAddress) {
+      window.location.reload();
+    }
+  };
+
+  if (!showCreate) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-bg-elevated flex items-center justify-center mx-auto mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-fg-muted">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="16" />
+            <line x1="8" y1="12" x2="16" y2="12" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-semibold mb-3">No Guards Yet</h2>
+        <p className="text-fg-secondary mb-8 max-w-md mx-auto">
+          Create your first Guard wallet to start protecting your AI agent payments with spending limits and endpoint controls.
+        </p>
+        <button 
+          onClick={() => setShowCreate(true)}
+          className="btn-primary text-base px-8 py-3"
+        >
+          Create Guard
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-6 space-y-6 animate-fade-in">
+      <h2 className="text-xl font-semibold">Create New Guard</h2>
+      
+      {error && (
+        <div className="p-4 bg-error-muted rounded-lg text-error text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-fg-secondary mb-2">
+            Agent Address
+          </label>
+          <input
+            type="text"
+            placeholder="0x..."
+            value={formData.agent}
+            onChange={(e) => setFormData({ ...formData, agent: e.target.value })}
+            className="input w-full font-mono"
+          />
+          <p className="text-xs text-fg-muted mt-1.5">
+            The address authorized to execute payments (your AI agent)
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-fg-secondary mb-2">
+              Max Per Transaction
+            </label>
+            <div className="flex">
+              <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
+                $
+              </span>
+              <input
+                type="number"
+                value={formData.maxPerTransaction}
+                onChange={(e) => setFormData({ ...formData, maxPerTransaction: e.target.value })}
+                className="input rounded-l-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-fg-secondary mb-2">
+              Daily Limit
+            </label>
+            <div className="flex">
+              <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
+                $
+              </span>
+              <input
+                type="number"
+                value={formData.dailyLimit}
+                onChange={(e) => setFormData({ ...formData, dailyLimit: e.target.value })}
+                className="input rounded-l-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-fg-secondary mb-2">
+              Approval Threshold
+            </label>
+            <div className="flex">
+              <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
+                $
+              </span>
+              <input
+                type="number"
+                value={formData.approvalThreshold}
+                onChange={(e) => setFormData({ ...formData, approvalThreshold: e.target.value })}
+                className="input rounded-l-none"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <button 
+          onClick={() => setShowCreate(false)}
+          className="btn-secondary"
+        >
+          Cancel
+        </button>
+        <button 
+          onClick={handleCreate}
+          disabled={isCreating || !formData.agent}
+          className="btn-primary flex items-center gap-2"
+        >
+          {isCreating && <LoadingSpinner />}
+          {isCreating ? "Creating..." : "Create Guard"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Guard selector for users with multiple guards
+function GuardSelector({ 
+  guards, 
+  selected, 
+  onSelect 
+}: { 
+  guards: Address[]; 
+  selected: Address | null; 
+  onSelect: (addr: Address) => void;
+}) {
+  if (guards.length <= 1) return null;
+
+  return (
+    <div className="card p-4 mb-6">
+      <label className="block text-sm font-medium text-fg-secondary mb-2">
+        Select Guard
+      </label>
+      <select 
+        value={selected || ""}
+        onChange={(e) => onSelect(e.target.value as Address)}
+        className="input w-full"
+      >
+        {guards.map((guard) => (
+          <option key={guard} value={guard}>
+            {guard.slice(0, 10)}...{guard.slice(-8)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// Main dashboard component
+function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
+  const {
+    guardData,
+    transactions,
+    endpoints,
+    isLoading,
+    error,
+    refetch,
+    setPolicy,
+    addEndpoint,
+    removeEndpoint,
+    toggleAllowAllEndpoints,
+    approvePayment,
+    rejectPayment,
+    fund,
+    withdraw,
+  } = useGuard(guardAddress);
+
   const [activeTab, setActiveTab] = useState<"overview" | "policies" | "endpoints">("overview");
   const [copied, setCopied] = useState(false);
+  const [newEndpoint, setNewEndpoint] = useState("");
+  const [policyForm, setPolicyForm] = useState({
+    maxPerTransaction: "",
+    dailyLimit: "",
+    approvalThreshold: "",
+  });
+  const [isUpdatingPolicy, setIsUpdatingPolicy] = useState(false);
+  const [isAddingEndpoint, setIsAddingEndpoint] = useState(false);
+  const [fundAmount, setFundAmount] = useState("");
+  const [isFunding, setIsFunding] = useState(false);
+
+  // Update form when guard data loads
+  useEffect(() => {
+    if (guardData) {
+      setPolicyForm({
+        maxPerTransaction: guardData.maxPerTransaction,
+        dailyLimit: guardData.dailyLimit,
+        approvalThreshold: guardData.approvalThreshold,
+      });
+    }
+  }, [guardData]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`https://guard.x402.io/${mockGuardData.address}/`);
+    navigator.clipboard.writeText(`https://guard.x402.io/${guardAddress}/`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const spendingPercentage = (parseFloat(mockGuardData.dailySpent) / parseFloat(mockGuardData.dailyLimit)) * 100;
+  const handleUpdatePolicy = async () => {
+    setIsUpdatingPolicy(true);
+    try {
+      await setPolicy(
+        policyForm.maxPerTransaction,
+        policyForm.dailyLimit,
+        policyForm.approvalThreshold
+      );
+    } catch (err) {
+      console.error("Failed to update policy:", err);
+    } finally {
+      setIsUpdatingPolicy(false);
+    }
+  };
+
+  const handleAddEndpoint = async () => {
+    if (!newEndpoint) return;
+    setIsAddingEndpoint(true);
+    try {
+      await addEndpoint(newEndpoint);
+      setNewEndpoint("");
+    } catch (err) {
+      console.error("Failed to add endpoint:", err);
+    } finally {
+      setIsAddingEndpoint(false);
+    }
+  };
+
+  const handleFund = async () => {
+    if (!fundAmount) return;
+    setIsFunding(true);
+    try {
+      await fund(fundAmount);
+      setFundAmount("");
+    } catch (err) {
+      console.error("Failed to fund:", err);
+    } finally {
+      setIsFunding(false);
+    }
+  };
+
+  if (isLoading && !guardData) {
+    return (
+      <div className="card p-12 text-center">
+        <LoadingSpinner />
+        <p className="text-fg-muted mt-4">Loading guard data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="text-error mb-4">Error: {error}</div>
+        <button onClick={refetch} className="btn-primary">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!guardData) {
+    return (
+      <div className="card p-12 text-center">
+        <p className="text-fg-muted">No guard data available</p>
+      </div>
+    );
+  }
+
+  const spendingPercentage = Math.min(
+    (parseFloat(guardData.dailySpent) / parseFloat(guardData.dailyLimit)) * 100,
+    100
+  );
+
+  // Get pending approvals from transactions (those in "pending" state)
+  const pendingApprovals: Transaction[] = []; // TODO: fetch from contract pending payments
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -67,16 +386,40 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Guard Wallet</h1>
             <p className="mt-1.5 font-mono text-sm text-fg-muted truncate max-w-[300px] sm:max-w-none">
-              {mockGuardData.address}
+              {guardData.address}
             </p>
           </div>
           <div className="sm:text-right">
             <p className="text-xs font-medium text-fg-muted uppercase tracking-wider">Balance</p>
             <p className="text-3xl font-semibold tracking-tight mt-1">
-              ${mockGuardData.balance}
+              ${parseFloat(guardData.balance).toFixed(2)}
               <span className="text-base font-medium text-fg-muted ml-1">USDC</span>
             </p>
           </div>
+        </div>
+
+        {/* Quick fund */}
+        <div className="flex gap-3 mt-4 pt-4 border-t border-border">
+          <div className="flex flex-1">
+            <span className="px-3 py-2 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
+              $
+            </span>
+            <input
+              type="number"
+              placeholder="Amount"
+              value={fundAmount}
+              onChange={(e) => setFundAmount(e.target.value)}
+              className="input rounded-l-none flex-1"
+            />
+          </div>
+          <button 
+            onClick={handleFund}
+            disabled={isFunding || !fundAmount}
+            className="btn-primary flex items-center gap-2"
+          >
+            {isFunding && <LoadingSpinner />}
+            Fund
+          </button>
         </div>
       </div>
 
@@ -85,7 +428,7 @@ export default function Home() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">Today&apos;s Spending</h2>
           <span className="text-sm text-fg-muted">
-            Resets in {mockGuardData.timeUntilReset}
+            Resets in {guardData.timeUntilReset}
           </span>
         </div>
         
@@ -98,39 +441,45 @@ export default function Home() {
         </div>
         
         <div className="flex justify-between mt-3 text-sm">
-          <span className="text-fg-secondary">${mockGuardData.dailySpent} spent</span>
+          <span className="text-fg-secondary">${parseFloat(guardData.dailySpent).toFixed(2)} spent</span>
           <span className="text-fg-muted">
-            ${mockGuardData.remainingBudget} remaining of ${mockGuardData.dailyLimit}
+            ${parseFloat(guardData.remainingBudget).toFixed(2)} remaining of ${parseFloat(guardData.dailyLimit).toFixed(2)}
           </span>
         </div>
       </div>
 
       {/* Pending Approvals */}
-      {mockPendingApprovals.length > 0 && (
+      {pendingApprovals.length > 0 && (
         <div className="card border-warning/30 bg-warning-muted/30 p-6 animate-slide-up">
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-2 h-2 rounded-full bg-warning animate-pulse-glow" />
             <h2 className="font-semibold text-warning">
-              Pending Approval{mockPendingApprovals.length > 1 ? 's' : ''} ({mockPendingApprovals.length})
+              Pending Approval{pendingApprovals.length > 1 ? 's' : ''} ({pendingApprovals.length})
             </h2>
           </div>
           
-          {mockPendingApprovals.map((approval) => (
+          {pendingApprovals.map((approval, idx) => (
             <div 
-              key={approval.id} 
+              key={idx} 
               className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-bg-secondary rounded-xl border border-border"
             >
               <div>
                 <p className="text-lg font-semibold">${approval.amount} USDC</p>
                 <p className="font-mono text-sm text-fg-secondary mt-0.5">{approval.endpoint}</p>
-                <p className="text-xs text-fg-muted mt-1">Requested {approval.requestedAt}</p>
+                <p className="text-xs text-fg-muted mt-1">Requested {timeAgo(approval.timestamp)}</p>
               </div>
               <div className="flex gap-2">
-                <button className="btn-success flex items-center gap-1.5">
+                <button 
+                  onClick={() => approvePayment(idx)}
+                  className="btn-success flex items-center gap-1.5"
+                >
                   <CheckIcon />
                   Approve
                 </button>
-                <button className="btn-danger flex items-center gap-1.5">
+                <button 
+                  onClick={() => rejectPayment(idx)}
+                  className="btn-danger flex items-center gap-1.5"
+                >
                   <XIcon />
                   Reject
                 </button>
@@ -164,41 +513,47 @@ export default function Home() {
             <h2 className="font-semibold">Recent Transactions</h2>
           </div>
           
-          <div className="divide-y divide-border/50">
-            {mockTransactions.map((tx) => (
-              <div 
-                key={tx.id} 
-                className="flex items-center justify-between px-6 py-4 hover:bg-bg-tertiary/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div 
-                    className={`w-8 h-8 rounded-full flex items-center justify-center
-                      ${tx.status === "success" 
-                        ? 'bg-success-muted text-success' 
-                        : 'bg-error-muted text-error'
-                      }`}
-                  >
-                    {tx.status === "success" ? <CheckIcon /> : <XIcon />}
+          {transactions.length === 0 ? (
+            <div className="px-6 py-12 text-center text-fg-muted">
+              No transactions yet
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {transactions.map((tx, idx) => (
+                <div 
+                  key={idx} 
+                  className="flex items-center justify-between px-6 py-4 hover:bg-bg-tertiary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className={`w-8 h-8 rounded-full flex items-center justify-center
+                        ${tx.status === "success" 
+                          ? 'bg-success-muted text-success' 
+                          : 'bg-error-muted text-error'
+                        }`}
+                    >
+                      {tx.status === "success" ? <CheckIcon /> : <XIcon />}
+                    </div>
+                    <div>
+                      <p className="font-mono text-sm font-medium">{tx.endpoint}</p>
+                      <p className="text-xs text-fg-muted mt-0.5">{timeAgo(tx.timestamp)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-mono text-sm font-medium">{tx.endpoint}</p>
-                    <p className="text-xs text-fg-muted mt-0.5">{tx.time}</p>
+                  <div className="text-right">
+                    <p 
+                      className={`text-sm font-semibold
+                        ${tx.status === "blocked" ? 'text-error line-through' : ''}`}
+                    >
+                      ${tx.amount}
+                    </p>
+                    {tx.status === "blocked" && tx.blockReason && (
+                      <span className="badge-error text-[10px]">{tx.blockReason}</span>
+                    )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p 
-                    className={`text-sm font-semibold
-                      ${tx.status === "blocked" ? 'text-error line-through' : ''}`}
-                  >
-                    ${tx.amount}
-                  </p>
-                  {tx.status === "blocked" && (
-                    <span className="badge-error text-[10px]">Over limit</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -208,11 +563,11 @@ export default function Home() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: "Max Per Transaction", value: mockGuardData.maxPerTransaction },
-              { label: "Daily Limit", value: mockGuardData.dailyLimit },
-              { label: "Require Approval Above", value: mockGuardData.approvalThreshold }
+              { label: "Max Per Transaction", key: "maxPerTransaction" as const },
+              { label: "Daily Limit", key: "dailyLimit" as const },
+              { label: "Require Approval Above", key: "approvalThreshold" as const }
             ].map((field) => (
-              <div key={field.label}>
+              <div key={field.key}>
                 <label className="block text-sm font-medium text-fg-secondary mb-2">
                   {field.label}
                 </label>
@@ -222,7 +577,8 @@ export default function Home() {
                   </span>
                   <input
                     type="number"
-                    defaultValue={field.value}
+                    value={policyForm[field.key]}
+                    onChange={(e) => setPolicyForm({ ...policyForm, [field.key]: e.target.value })}
                     className="input rounded-l-none"
                   />
                 </div>
@@ -230,7 +586,12 @@ export default function Home() {
             ))}
           </div>
 
-          <button className="btn-primary">
+          <button 
+            onClick={handleUpdatePolicy}
+            disabled={isUpdatingPolicy}
+            className="btn-primary flex items-center gap-2"
+          >
+            {isUpdatingPolicy && <LoadingSpinner />}
             Update Policies
           </button>
         </div>
@@ -243,6 +604,8 @@ export default function Home() {
             <label className="flex items-center gap-3 cursor-pointer group">
               <input 
                 type="checkbox" 
+                checked={guardData.allowAllEndpoints}
+                onChange={(e) => toggleAllowAllEndpoints(e.target.checked)}
                 className="w-4 h-4 rounded bg-bg-tertiary border-border accent-accent"
               />
               <span className="text-sm text-fg-muted group-hover:text-fg-secondary transition-colors">
@@ -251,30 +614,48 @@ export default function Home() {
             </label>
           </div>
           
-          <div className="space-y-2">
-            {["api.openai.com", "api.anthropic.com", "weather.api", "news.api"].map((endpoint) => (
-              <div 
-                key={endpoint} 
-                className="flex items-center justify-between p-4 bg-bg-tertiary rounded-xl border border-border/50 group hover:border-border transition-colors"
-              >
-                <span className="font-mono text-sm">{endpoint}/*</span>
-                <button className="text-sm font-medium text-error opacity-0 group-hover:opacity-100 transition-opacity">
-                  Remove
+          {!guardData.allowAllEndpoints && (
+            <>
+              <div className="space-y-2">
+                {endpoints.length === 0 ? (
+                  <p className="text-fg-muted text-sm py-4">No endpoints configured</p>
+                ) : (
+                  endpoints.map((ep) => (
+                    <div 
+                      key={ep.endpoint} 
+                      className="flex items-center justify-between p-4 bg-bg-tertiary rounded-xl border border-border/50 group hover:border-border transition-colors"
+                    >
+                      <span className="font-mono text-sm">{ep.endpoint}/*</span>
+                      <button 
+                        onClick={() => removeEndpoint(ep.endpoint)}
+                        className="text-sm font-medium text-error opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="api.example.com"
+                  value={newEndpoint}
+                  onChange={(e) => setNewEndpoint(e.target.value)}
+                  className="input flex-1"
+                />
+                <button 
+                  onClick={handleAddEndpoint}
+                  disabled={isAddingEndpoint || !newEndpoint}
+                  className="btn-primary whitespace-nowrap flex items-center gap-2"
+                >
+                  {isAddingEndpoint && <LoadingSpinner />}
+                  Add Endpoint
                 </button>
               </div>
-            ))}
-          </div>
-
-          <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="api.example.com"
-              className="input flex-1"
-            />
-            <button className="btn-primary whitespace-nowrap">
-              Add Endpoint
-            </button>
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -287,7 +668,7 @@ export default function Home() {
         
         <div className="flex gap-3 mt-5">
           <code className="flex-1 px-4 py-3 bg-bg-primary border border-border rounded-lg font-mono text-sm text-success break-all">
-            https://guard.x402.io/{mockGuardData.address}/
+            https://guard.x402.io/{guardData.address}/
           </code>
           <button 
             onClick={handleCopy}
@@ -301,10 +682,52 @@ export default function Home() {
         <p className="text-sm text-fg-muted mt-4">
           Example:{" "}
           <code className="font-mono text-fg-secondary">
-            https://guard.x402.io/{mockGuardData.address.slice(0, 10)}.../<span className="text-accent">api.openai.com</span>/v1/chat
+            https://guard.x402.io/{guardData.address.slice(0, 10)}.../<span className="text-accent">api.openai.com</span>/v1/chat
           </code>
         </p>
       </div>
     </div>
+  );
+}
+
+// Main page component
+export default function Home() {
+  const { isConnected, address } = useWeb3();
+  const { guards, isLoading: isLoadingGuards } = useUserGuards();
+  const [selectedGuard, setSelectedGuard] = useState<Address | null>(null);
+
+  // Auto-select first guard when loaded
+  useEffect(() => {
+    if (guards.length > 0 && !selectedGuard) {
+      setSelectedGuard(guards[0]);
+    }
+  }, [guards, selectedGuard]);
+
+  if (!isConnected) {
+    return <NotConnectedView />;
+  }
+
+  if (isLoadingGuards) {
+    return (
+      <div className="card p-12 text-center">
+        <LoadingSpinner />
+        <p className="text-fg-muted mt-4">Loading your guards...</p>
+      </div>
+    );
+  }
+
+  if (guards.length === 0) {
+    return <NoGuardsView />;
+  }
+
+  return (
+    <>
+      <GuardSelector 
+        guards={guards} 
+        selected={selectedGuard} 
+        onSelect={setSelectedGuard} 
+      />
+      {selectedGuard && <GuardDashboard guardAddress={selectedGuard} />}
+    </>
   );
 }
