@@ -632,7 +632,12 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
       {activeTab === "endpoints" && (
         <div className="card p-6 space-y-6 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="font-semibold">Allowed Endpoints</h2>
+            <div>
+              <h2 className="font-semibold">Allowed Endpoints</h2>
+              <p className="text-sm text-fg-muted mt-1">
+                Whitelist API endpoints that your AI agent can call
+              </p>
+            </div>
             <label className="flex items-center gap-3 cursor-pointer group">
               <input 
                 type="checkbox" 
@@ -648,49 +653,95 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
           
           {!guardData.allowAllEndpoints && (
             <>
-              <div className="space-y-2">
-                {endpoints.length === 0 ? (
-                  <p className="text-fg-muted text-sm py-4">No endpoints configured</p>
-                ) : (
-                  endpoints.map((ep) => (
-                    <div 
-                      key={ep.endpoint} 
-                      className="flex items-center justify-between p-4 bg-bg-tertiary rounded-xl border border-border/50 group hover:border-border transition-colors"
-                    >
-                      <span className="font-mono text-sm">{ep.endpoint}/*</span>
-                      <button 
-                        onClick={() => removeEndpoint(ep.endpoint)}
-                        className="text-sm font-medium text-error opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))
-                )}
+              {/* Add Endpoint Form - Prominent at top */}
+              <div className="p-4 bg-bg-elevated border border-border rounded-xl">
+                <label className="block text-sm font-medium text-fg-secondary mb-3">
+                  Add New Endpoint
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="api.example.com/endpoint"
+                    value={newEndpoint}
+                    onChange={(e) => setNewEndpoint(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && newEndpoint) {
+                        handleAddEndpoint();
+                      }
+                    }}
+                    className="input flex-1"
+                  />
+                  <button 
+                    onClick={handleAddEndpoint}
+                    disabled={isAddingEndpoint || !newEndpoint}
+                    className="btn-primary whitespace-nowrap flex items-center gap-2 px-6"
+                  >
+                    {isAddingEndpoint && <LoadingSpinner />}
+                    {isAddingEndpoint ? 'Adding...' : 'Add Endpoint'}
+                  </button>
+                </div>
+                <p className="text-xs text-fg-muted mt-2">
+                  Example: <code className="bg-bg-tertiary px-1.5 py-0.5 rounded">api.openai.com</code> or <code className="bg-bg-tertiary px-1.5 py-0.5 rounded">api.anthropic.com/v1</code>
+                </p>
               </div>
 
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  placeholder="api.example.com"
-                  value={newEndpoint}
-                  onChange={(e) => setNewEndpoint(e.target.value)}
-                  className="input flex-1"
-                />
-                <button 
-                  onClick={handleAddEndpoint}
-                  disabled={isAddingEndpoint || !newEndpoint}
-                  className="btn-primary whitespace-nowrap flex items-center gap-2"
-                >
-                  {isAddingEndpoint && <LoadingSpinner />}
-                  Add Endpoint
-                </button>
+              {/* Endpoint List */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-fg-secondary">
+                    Whitelisted Endpoints ({endpoints.length})
+                  </h3>
+                </div>
+                
+                {endpoints.length === 0 ? (
+                  <div className="text-center py-8 px-4 bg-bg-elevated rounded-xl border border-dashed border-border">
+                    <svg 
+                      className="w-12 h-12 mx-auto mb-3 text-fg-muted opacity-50" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <p className="text-fg-muted text-sm">No endpoints whitelisted yet</p>
+                    <p className="text-fg-muted text-xs mt-1">Add an endpoint above to get started</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {endpoints.map((ep) => (
+                      <div 
+                        key={ep.endpoint} 
+                        className="flex items-center justify-between p-4 bg-bg-tertiary rounded-xl border border-border/50 group hover:border-border transition-colors"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-success-muted flex items-center justify-center flex-shrink-0">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-success">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-mono text-sm font-medium truncate">{ep.endpoint}/*</p>
+                            <p className="text-xs text-fg-muted mt-0.5">
+                              Added {new Date(ep.addedAt * 1000).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => removeEndpoint(ep.endpoint)}
+                          className="text-sm font-medium text-error opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 hover:bg-error-muted rounded-lg ml-3"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
         </div>
       )}
-
+      
       {/* Proxy URL */}
       <div className="card p-6">
         <h2 className="font-semibold">Your Proxy URL</h2>
