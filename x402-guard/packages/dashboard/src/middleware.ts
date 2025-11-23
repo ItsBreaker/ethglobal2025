@@ -1,5 +1,5 @@
 import { paymentMiddleware } from 'x402-next';
-// import { facilitator } from "@coinbase/x402"; // For mainnet
+ import { facilitator } from "@coinbase/x402"; // For mainnet
 
 /**
  * x402 Payment Middleware Configuration
@@ -13,7 +13,7 @@ export const middleware = paymentMiddleware(
     // Test/Demo endpoint - Simple demonstration of x402 payment flow
     '/api/test': {
       price: '$0.001',
-      network: "base-sepolia",
+      network: "base",
       config: {
         description: 'Test endpoint demonstrating x402 payment integration',
         inputSchema: {
@@ -28,7 +28,6 @@ export const middleware = paymentMiddleware(
         }
       }
     },
-
     // Mock API endpoints - Individual routes for payment protection
     '/api/mock': {
       price: '$0.01',
@@ -72,9 +71,9 @@ export const middleware = paymentMiddleware(
       }
     }
   },
-  {
-    url: "https://x402.org/facilitator", // Testnet facilitator
-  }
+  
+  facilitator,
+  
 );
 
 /**
