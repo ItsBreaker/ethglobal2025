@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { Address } from "viem";
 import { useWeb3 } from "./providers";
-import { useGuard, useUserGuards, useCreateGuard, Transaction, E2EPaymentResult } from "./hooks";
-
+import { useGuard, useUserGuards, useCreateGuard, Transaction } from "./hooks";
 
 // Icons
 const CheckIcon = () => (
@@ -20,13 +19,6 @@ const XIcon = () => (
   </svg>
 );
 
-const CopyIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-
 const LoadingSpinner = () => (
   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -34,18 +26,11 @@ const LoadingSpinner = () => (
   </svg>
 );
 
-const SendIcon = () => (
+const InfoIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="22" y1="2" x2="11" y2="13" />
-    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-  </svg>
-);
-
-const ExternalLinkIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-    <polyline points="15 3 21 3 21 9" />
-    <line x1="10" y1="14" x2="21" y2="3" />
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="16" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12.01" y2="8" />
   </svg>
 );
 
@@ -66,38 +51,83 @@ function NotConnectedView() {
   const { connect, isConnecting } = useWeb3();
 
   return (
-    <div className="card p-12 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-blue-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-accent/20">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
+    <div className="max-w-3xl mx-auto">
+      <div className="card p-12 text-center">
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-accent to-blue-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-accent/20">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold mb-4">Welcome to x402 Guard</h1>
+        <p className="text-lg text-fg-secondary mb-2">
+          Protect your AI agent&apos;s spending with smart payment controls
+        </p>
+        <p className="text-fg-muted mb-8 max-w-xl mx-auto">
+          Set spending limits, whitelist endpoints, and require approvals for large payments - 
+          all before your AI agent can spend a single dollar.
+        </p>
+        <button 
+          onClick={connect}
+          disabled={isConnecting}
+          className="btn-primary text-lg px-10 py-4 mx-auto"
+        >
+          {isConnecting ? "Connecting..." : "Connect Wallet to Get Started"}
+        </button>
+        
+        <div className="mt-12 grid grid-cols-3 gap-6 text-left">
+          <div className="p-4 bg-bg-elevated rounded-lg">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h3 className="font-semibold mb-1">Set Limits</h3>
+            <p className="text-sm text-fg-muted">Control daily spending and max transaction amounts</p>
+          </div>
+          
+          <div className="p-4 bg-bg-elevated rounded-lg">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 className="font-semibold mb-1">Whitelist APIs</h3>
+            <p className="text-sm text-fg-muted">Only allow approved API endpoints</p>
+          </div>
+          
+          <div className="p-4 bg-bg-elevated rounded-lg">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+            </div>
+            <h3 className="font-semibold mb-1">Review First</h3>
+            <p className="text-sm text-fg-muted">Require approval for large payments</p>
+          </div>
+        </div>
       </div>
-      <h2 className="text-2xl font-semibold mb-3">Welcome to x402-Guard</h2>
-      <p className="text-fg-secondary mb-8 max-w-md mx-auto">
-        Connect your wallet to manage your AI agent payment guards and set spending policies.
-      </p>
-      <button 
-        onClick={connect}
-        disabled={isConnecting}
-        className="btn-primary text-base px-8 py-3"
-      >
-        {isConnecting ? "Connecting..." : "Connect Wallet"}
-      </button>
     </div>
   );
 }
 
-// No guards view - prompt to create
-function NoGuardsView() {
+// Setup wizard for creating a guard
+function GuardSetupWizard() {
   const { createGuard, isCreating, error } = useCreateGuard();
-  const { address, chainId, isSupported } = useWeb3();
-  const [showCreate, setShowCreate] = useState(false);
+  const { address } = useWeb3();
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    agent: "",
-    maxPerTransaction: "5",
-    dailyLimit: "50",
-    approvalThreshold: "2",
+    agent: address || "",
+    maxPerTransaction: "10",
+    dailyLimit: "100",
+    approvalThreshold: "50",
   });
+
+  useEffect(() => {
+    if (address && !formData.agent) {
+      setFormData(prev => ({ ...prev, agent: address }));
+    }
+  }, [address, formData.agent]);
 
   const handleCreate = async () => {
     const guardAddress = await createGuard(
@@ -111,321 +141,388 @@ function NoGuardsView() {
     }
   };
 
-  // Show chain warning if not on supported network
-  if (!isSupported && chainId) {
-    return (
-      <div className="card p-12 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-warning-muted flex items-center justify-center mx-auto mb-6">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
+  return (
+    <div className="max-w-3xl mx-auto">
+      {/* Progress indicator */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center flex-1">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                step >= s ? 'bg-accent text-white' : 'bg-bg-elevated text-fg-muted'
+              }`}>
+                {s}
+              </div>
+              {s < 3 && (
+                <div className={`flex-1 h-1 mx-2 ${step > s ? 'bg-accent' : 'bg-bg-elevated'}`} />
+              )}
+            </div>
+          ))}
         </div>
-        <h2 className="text-2xl font-semibold mb-3 text-warning">Wrong Network</h2>
-        <p className="text-fg-secondary mb-4">
-          You&apos;re connected to chain ID: <code className="bg-bg-elevated px-2 py-1 rounded">{chainId}</code>
-        </p>
-        <p className="text-fg-muted mb-8 max-w-md mx-auto">
-          Please switch to Base Sepolia (84532) in your wallet to use x402-Guard.
-        </p>
-        <div className="text-sm text-fg-muted">
-          <p>Supported networks:</p>
-          <p className="font-mono mt-2">Base Sepolia (84532) • Hardhat (31337)</p>
+        <div className="flex justify-between text-sm">
+          <span className={step >= 1 ? 'text-fg-primary font-medium' : 'text-fg-muted'}>What is a Guard?</span>
+          <span className={step >= 2 ? 'text-fg-primary font-medium' : 'text-fg-muted'}>Set Limits</span>
+          <span className={step >= 3 ? 'text-fg-primary font-medium' : 'text-fg-muted'}>Review & Create</span>
         </div>
       </div>
-    );
-  }
 
-  if (!showCreate) {
-    return (
-      <div className="card p-12 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-bg-elevated flex items-center justify-center mx-auto mb-6">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-fg-muted">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="16" />
-            <line x1="8" y1="12" x2="16" y2="12" />
-          </svg>
-        </div>
-        <h2 className="text-2xl font-semibold mb-3">No Guards Yet</h2>
-        <p className="text-fg-secondary mb-4 max-w-md mx-auto">
-          Create your first Guard wallet to start protecting your AI agent payments with spending limits and endpoint controls.
-        </p>
-        {chainId && (
-          <p className="text-xs text-fg-muted mb-8">
-            Connected to chain: {chainId === 84532 ? "Base Sepolia" : chainId === 31337 ? "Hardhat" : chainId}
-          </p>
+      <div className="card p-8">
+        {error && (
+          <div className="p-4 bg-error-muted rounded-lg text-error text-sm mb-6">
+            {error}
+          </div>
         )}
-        <button 
-          onClick={() => setShowCreate(true)}
-          className="btn-primary text-base px-8 py-3"
-        >
-          Create Guard
-        </button>
-      </div>
-    );
-  }
 
-  return (
-    <div className="card p-6 space-y-6 animate-fade-in">
-      <h2 className="text-xl font-semibold">Create New Guard</h2>
-      
-      {error && (
-        <div className="p-4 bg-error-muted rounded-lg text-error text-sm">
-          {error}
-        </div>
-      )}
+        {/* Step 1: Explanation */}
+        {step === 1 && (
+          <div className="space-y-6 animate-fade-in">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">What is a Guard Wallet?</h2>
+              <p className="text-lg text-fg-secondary mb-6">
+                A Guard is a smart wallet that protects your AI agent&apos;s spending. Think of it as a bouncer for your money.
+              </p>
+            </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-fg-secondary mb-2">
-            Agent Address
-          </label>
-          <input
-            type="text"
-            placeholder="0x..."
-            value={formData.agent}
-            onChange={(e) => setFormData({ ...formData, agent: e.target.value })}
-            className="input w-full font-mono"
-          />
-          <p className="text-xs text-fg-muted mt-1.5">
-            The address authorized to execute payments (your AI agent)
-          </p>
-        </div>
+            <div className="space-y-4">
+              <div className="flex gap-4 p-4 bg-bg-elevated rounded-lg">
+                <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1">Without a Guard</h3>
+                  <p className="text-sm text-fg-muted">
+                    Your AI agent has direct access to your wallet. It could spend $1,000 on API calls by mistake, 
+                    call unauthorized endpoints, or drain your funds if compromised.
+                  </p>
+                </div>
+              </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-fg-secondary mb-2">
-              Max Per Transaction
-            </label>
-            <div className="flex">
-              <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
-                $
-              </span>
-              <input
-                type="number"
-                value={formData.maxPerTransaction}
-                onChange={(e) => setFormData({ ...formData, maxPerTransaction: e.target.value })}
-                className="input rounded-l-none"
-              />
+              <div className="flex gap-4 p-4 bg-accent/5 border-2 border-accent/20 rounded-lg">
+                <div className="w-12 h-12 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+                  <CheckIcon />
+                  <span className="sr-only">Check</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1">With a Guard</h3>
+                  <p className="text-sm text-fg-secondary">
+                    The Guard enforces spending limits ($10/transaction, $100/day), only allows whitelisted APIs, 
+                    and requires your approval for large payments. Your agent can&apos;t overspend even if it wants to.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
+              <div className="flex gap-3">
+                <InfoIcon />
+                <div className="flex-1">
+                  <p className="font-semibold text-sm mb-1">How it works</p>
+                  <p className="text-sm text-fg-muted">
+                    You&apos;ll fund the Guard wallet with USDC. When your AI agent needs to call an API, 
+                    it requests payment from the Guard. The Guard checks if the request is allowed, 
+                    then either approves or blocks it based on your rules.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <button 
+                onClick={() => setStep(2)}
+                className="btn-primary px-8"
+              >
+                Got it! Set Up My Guard →
+              </button>
             </div>
           </div>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-fg-secondary mb-2">
-              Daily Limit
-            </label>
-            <div className="flex">
-              <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
-                $
-              </span>
-              <input
-                type="number"
-                value={formData.dailyLimit}
-                onChange={(e) => setFormData({ ...formData, dailyLimit: e.target.value })}
-                className="input rounded-l-none"
-              />
+        {/* Step 2: Set Limits */}
+        {step === 2 && (
+          <div className="space-y-6 animate-fade-in">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Set Spending Limits</h2>
+              <p className="text-fg-secondary">
+                These limits protect you from unexpected costs. You can change them anytime.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-fg-secondary mb-2">
+                  Maximum Per Transaction
+                </label>
+                <div className="flex items-start gap-4">
+                  <div className="flex flex-1">
+                    <span className="px-4 py-3 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      value={formData.maxPerTransaction}
+                      onChange={(e) => setFormData({ ...formData, maxPerTransaction: e.target.value })}
+                      className="input rounded-l-none flex-1 text-lg"
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-fg-muted mt-2">
+                  💡 <strong>Recommended: $5-10</strong> - Most API calls cost $0.01-1.00
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-fg-secondary mb-2">
+                  Daily Spending Limit
+                </label>
+                <div className="flex items-start gap-4">
+                  <div className="flex flex-1">
+                    <span className="px-4 py-3 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      value={formData.dailyLimit}
+                      onChange={(e) => setFormData({ ...formData, dailyLimit: e.target.value })}
+                      className="input rounded-l-none flex-1 text-lg"
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-fg-muted mt-2">
+                  💡 <strong>Recommended: $50-100</strong> - Resets every 24 hours at midnight
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-fg-secondary mb-2">
+                  Approval Required Above
+                </label>
+                <div className="flex items-start gap-4">
+                  <div className="flex flex-1">
+                    <span className="px-4 py-3 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      value={formData.approvalThreshold}
+                      onChange={(e) => setFormData({ ...formData, approvalThreshold: e.target.value })}
+                      className="input rounded-l-none flex-1 text-lg"
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-fg-muted mt-2">
+                  💡 <strong>Recommended: $5-20</strong> - You&apos;ll approve expensive calls manually
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button 
+                onClick={() => setStep(1)}
+                className="btn-secondary"
+              >
+                ← Back
+              </button>
+              <button 
+                onClick={() => setStep(3)}
+                className="btn-primary flex-1"
+              >
+                Continue to Review →
+              </button>
             </div>
           </div>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-fg-secondary mb-2">
-              Approval Threshold
-            </label>
-            <div className="flex">
-              <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
-                $
-              </span>
-              <input
-                type="number"
-                value={formData.approvalThreshold}
-                onChange={(e) => setFormData({ ...formData, approvalThreshold: e.target.value })}
-                className="input rounded-l-none"
-              />
+        {/* Step 3: Review & Create */}
+        {step === 3 && (
+          <div className="space-y-6 animate-fade-in">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Review Your Guard Setup</h2>
+              <p className="text-fg-secondary">
+                Double-check everything looks good, then create your Guard wallet.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between p-4 bg-bg-elevated rounded-lg">
+                <span className="text-fg-muted">AI Agent Address</span>
+                <span className="font-mono text-sm">{formData.agent.slice(0, 10)}...{formData.agent.slice(-8)}</span>
+              </div>
+              <div className="flex justify-between p-4 bg-bg-elevated rounded-lg">
+                <span className="text-fg-muted">Max Per Transaction</span>
+                <span className="font-semibold">${formData.maxPerTransaction}</span>
+              </div>
+              <div className="flex justify-between p-4 bg-bg-elevated rounded-lg">
+                <span className="text-fg-muted">Daily Limit</span>
+                <span className="font-semibold">${formData.dailyLimit}</span>
+              </div>
+              <div className="flex justify-between p-4 bg-bg-elevated rounded-lg">
+                <span className="text-fg-muted">Approval Threshold</span>
+                <span className="font-semibold">${formData.approvalThreshold}</span>
+              </div>
+            </div>
+
+            <div className="bg-accent/5 border border-accent/20 rounded-lg p-4">
+              <p className="font-semibold text-sm mb-2">✅ What happens next:</p>
+              <ol className="text-sm text-fg-secondary space-y-1 list-decimal list-inside">
+                <li>We&apos;ll create your Guard wallet</li>
+                <li>You&apos;ll fund it with USDC (next step)</li>
+                <li>You can whitelist API endpoints your agent can call</li>
+                <li>Your AI agent will request payments from the Guard</li>
+                <li>The Guard enforces your limits automatically</li>
+              </ol>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button 
+                onClick={() => setStep(2)}
+                className="btn-secondary"
+              >
+                ← Back
+              </button>
+              <button 
+                onClick={handleCreate}
+                disabled={isCreating}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                {isCreating && <LoadingSpinner />}
+                {isCreating ? "Creating Your Guard..." : "Create My Guard Wallet"}
+              </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="flex gap-3">
-        <button 
-          onClick={() => setShowCreate(false)}
-          className="btn-secondary"
-        >
-          Cancel
-        </button>
-        <button 
-          onClick={handleCreate}
-          disabled={isCreating || !formData.agent}
-          className="btn-primary flex items-center gap-2"
-        >
-          {isCreating && <LoadingSpinner />}
-          {isCreating ? "Creating..." : "Create Guard"}
-        </button>
+        )}
       </div>
     </div>
   );
 }
 
-// Guard selector for users with multiple guards
-function GuardSelector({ 
-  guards, 
-  selected, 
-  onSelect 
-}: { 
-  guards: Address[]; 
-  selected: Address | null; 
-  onSelect: (addr: Address) => void;
-}) {
-  if (guards.length <= 1) return null;
-
-  return (
-    <div className="card p-4 mb-6">
-      <label className="block text-sm font-medium text-fg-secondary mb-2">
-        Select Guard
-      </label>
-      <select 
-        value={selected || ""}
-        onChange={(e) => onSelect(e.target.value as Address)}
-        className="input w-full"
-      >
-        {guards.map((guard) => (
-          <option key={guard} value={guard}>
-            {guard.slice(0, 10)}...{guard.slice(-8)}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+// Test Payment Component
+interface Endpoint {
+  endpoint: string;
+  addedAt: number;
 }
 
-// Payment Test Component - NEW
-function PaymentTestPanel({ guardAddress, makeE2EPayment }: { 
+function TestPaymentSection({ guardAddress, endpoints }: { 
   guardAddress: Address;
-  makeE2EPayment: (targetUrl: string) => Promise<E2EPaymentResult>;
+  endpoints: Endpoint[];
 }) {
-  const [targetUrl, setTargetUrl] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<E2EPaymentResult | null>(null);
+  const [selectedEndpoint, setSelectedEndpoint] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
 
-  const handlePayment = async () => {
+  const handleTest = async () => {
+    let targetUrl = customUrl || selectedEndpoint;
     if (!targetUrl) return;
 
-    setIsProcessing(true);
-    setResult(null);
-
-    try {
-      const paymentResult = await makeE2EPayment(targetUrl);
-      setResult(paymentResult);
-    } catch (err) {
-      setResult({
-        success: false,
-        error: err instanceof Error ? err.message : "Payment failed",
-      });
-    } finally {
-      setIsProcessing(false);
+    // Clean up the URL - remove any double https:// prefixes
+    targetUrl = targetUrl.replace(/^https?:\/\/https?:\/\//, 'https://');
+    
+    // Ensure it has a protocol
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
     }
+
+    console.log("[Test] Navigating to E2E proxy for:", targetUrl);
+    
+    // Navigate to the E2E proxy - it will handle the full x402 payment flow
+    const proxyUrl = `/api/x402-proxy/e2e?target=${encodeURIComponent(targetUrl)}`;
+    window.location.href = proxyUrl;
   };
 
   return (
-    <div className="card p-6 space-y-4 border-2 border-accent/20">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-          <SendIcon />
+    <div className="card p-6 border-2 border-accent/30">
+      <div className="flex items-start gap-4 mb-6">
+        <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
         </div>
+        <div className="flex-1">
+          <h2 className="text-xl font-semibold mb-2">Test Guard Payment</h2>
+          <p className="text-fg-secondary text-sm">
+            Try calling one of your whitelisted endpoints. You'll be taken to the payment page, 
+            and after payment, the Guard will automatically bridge USDC and call the API.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Quick Select */}
         <div>
-          <h2 className="font-semibold">Test E2E Payment</h2>
-          <p className="text-sm text-fg-muted">Make a cross-chain payment with automatic bridging</p>
+          <label className="block text-sm font-medium mb-2">Quick Select Endpoint</label>
+          <select 
+            value={selectedEndpoint}
+            onChange={(e) => {
+              setSelectedEndpoint(e.target.value);
+              setCustomUrl("");
+            }}
+            className="input w-full"
+          >
+            <option value="">Choose a whitelisted endpoint...</option>
+            {endpoints.map((ep) => (
+              <option key={ep.endpoint} value={ep.endpoint}>
+                {ep.endpoint}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Or Custom URL */}
+        <div>
+          <label className="block text-sm font-medium mb-2">Or Enter Full URL</label>
+          <input
+            type="text"
+            placeholder="https://coinapi.dev/api/price/bitcoin/2024-01-01"
+            value={customUrl}
+            onChange={(e) => {
+              setCustomUrl(e.target.value);
+              setSelectedEndpoint("");
+            }}
+            className="input w-full font-mono text-sm"
+          />
+          <p className="text-xs text-fg-muted mt-1">
+            Example x402 endpoint: <code className="bg-bg-tertiary px-1 py-0.5 rounded">https://coinapi.dev/api/price/bitcoin/2024-01-01</code>
+          </p>
+        </div>
+
+        {/* Test Button */}
+        <button 
+          onClick={handleTest}
+          disabled={!selectedEndpoint && !customUrl}
+          className="btn-primary w-full flex items-center justify-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+          Make Payment & Call API
+        </button>
+
+        {/* Info Box */}
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 text-sm">
+          <p className="font-semibold mb-2">ℹ️ How this works:</p>
+          <ol className="text-fg-secondary space-y-1 list-decimal list-inside text-xs">
+            <li>Click "Make Payment & Call API"</li>
+            <li>You'll see the x402 payment interface</li>
+            <li>Complete the payment (your wallet will prompt you)</li>
+            <li>E2E proxy detects the target chain (e.g., Polygon)</li>
+            <li>Bridges USDC from Base → Target chain (~5-10 min)</li>
+            <li>Makes payment to the API with x402</li>
+            <li>You'll see the API response as JSON</li>
+          </ol>
+          <p className="text-fg-muted text-xs mt-2">
+            <strong>Note:</strong> The bridging process happens after payment and can take several minutes.
+          </p>
         </div>
       </div>
-
-      <div>
-        <label className="block text-sm font-medium text-fg-secondary mb-2">
-          Target x402 API Endpoint
-        </label>
-        <input
-          type="text"
-          placeholder="https://api.example.com/v1/endpoint"
-          value={targetUrl}
-          onChange={(e) => setTargetUrl(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && targetUrl && !isProcessing) {
-              handlePayment();
-            }
-          }}
-          className="input w-full font-mono text-sm"
-          disabled={isProcessing}
-        />
-        <p className="text-xs text-fg-muted mt-1.5">
-          Enter the URL of an x402-enabled API endpoint. The Guard will automatically bridge funds and make the payment.
-        </p>
-      </div>
-
-      <button 
-        onClick={handlePayment}
-        disabled={isProcessing || !targetUrl}
-        className="btn-primary w-full flex items-center justify-center gap-2"
-      >
-        {isProcessing ? (
-          <>
-            <LoadingSpinner />
-            Processing Payment...
-          </>
-        ) : (
-          <>
-            <SendIcon />
-            Send Payment
-          </>
-        )}
-      </button>
-
-      {result && (
-        <div className={`p-4 rounded-lg border-2 ${
-          result.success 
-            ? 'bg-success-muted/30 border-success' 
-            : 'bg-error-muted/30 border-error'
-        }`}>
-          <div className="flex items-center gap-2 mb-2">
-            {result.success ? (
-              <CheckIcon />
-            ) : (
-              <XIcon />
-            )}
-            <span className="font-semibold">
-              {result.success ? 'Payment Successful!' : 'Payment Failed'}
-            </span>
-          </div>
-          
-          {result.success && result.txHash && (
-            <div className="space-y-2 text-sm">
-              <div>
-                <span className="text-fg-muted">Transaction Hash:</span>
-                <p className="font-mono text-xs break-all">{result.txHash}</p>
-              </div>
-              {result.explorerUrl && (
-                <a 
-                  href={result.explorerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-accent hover:underline"
-                >
-                  View on Explorer
-                  <ExternalLinkIcon />
-                </a>
-              )}
-            </div>
-          )}
-
-          {!result.success && result.error && (
-            <p className="text-sm text-error">{result.error}</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-// Main dashboard component
+// Main dashboard - simplified and clearer
 function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
   const {
     guardData,
@@ -434,59 +531,27 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
     isLoading,
     error,
     refetch,
-    setPolicy,
+    fund,
     addEndpoint,
     removeEndpoint,
-    toggleAllowAllEndpoints,
-    approvePayment,
-    rejectPayment,
-    fund,
-    withdraw,
-    makeE2EPayment,
+    setPolicy,
   } = useGuard(guardAddress);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "policies" | "endpoints" | "test">("overview");
-  const [copied, setCopied] = useState(false);
-  const [newEndpoint, setNewEndpoint] = useState("");
-  const [policyForm, setPolicyForm] = useState({
-    maxPerTransaction: "",
-    dailyLimit: "",
-    approvalThreshold: "",
-  });
-  const [isUpdatingPolicy, setIsUpdatingPolicy] = useState(false);
-  const [isAddingEndpoint, setIsAddingEndpoint] = useState(false);
   const [fundAmount, setFundAmount] = useState("");
   const [isFunding, setIsFunding] = useState(false);
+  const [newEndpoint, setNewEndpoint] = useState("");
+  const [isAddingEndpoint, setIsAddingEndpoint] = useState(false);
 
-  // Update form when guard data loads
-  useEffect(() => {
-    if (guardData) {
-      setPolicyForm({
-        maxPerTransaction: guardData.maxPerTransaction,
-        dailyLimit: guardData.dailyLimit,
-        approvalThreshold: guardData.approvalThreshold,
-      });
-    }
-  }, [guardData]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(`https://guard.x402.io/${guardAddress}/`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleUpdatePolicy = async () => {
-    setIsUpdatingPolicy(true);
+  const handleFund = async () => {
+    if (!fundAmount) return;
+    setIsFunding(true);
     try {
-      await setPolicy(
-        policyForm.maxPerTransaction,
-        policyForm.dailyLimit,
-        policyForm.approvalThreshold
-      );
+      await fund(fundAmount);
+      setFundAmount("");
     } catch (err) {
-      console.error("Failed to update policy:", err);
+      console.error("Failed to fund:", err);
     } finally {
-      setIsUpdatingPolicy(false);
+      setIsFunding(false);
     }
   };
 
@@ -503,24 +568,11 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
     }
   };
 
-  const handleFund = async () => {
-    if (!fundAmount) return;
-    setIsFunding(true);
-    try {
-      await fund(fundAmount);
-      setFundAmount("");
-    } catch (err) {
-      console.error("Failed to fund:", err);
-    } finally {
-      setIsFunding(false);
-    }
-  };
-
   if (isLoading && !guardData) {
     return (
       <div className="card p-12 text-center">
         <LoadingSpinner />
-        <p className="text-fg-muted mt-4">Loading guard data...</p>
+        <p className="text-fg-muted mt-4">Loading your Guard...</p>
       </div>
     );
   }
@@ -537,504 +589,233 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
   }
 
   if (!guardData) {
-    return (
-      <div className="card p-12 text-center">
-        <p className="text-fg-muted">No guard data available</p>
-      </div>
-    );
+    return null;
   }
 
+  const needsFunding = parseFloat(guardData.balance) === 0;
   const spendingPercentage = Math.min(
     (parseFloat(guardData.dailySpent) / parseFloat(guardData.dailyLimit)) * 100,
     100
   );
 
-  // Get pending approvals from transactions (those in "pending" state)
-  const pendingApprovals: Transaction[] = []; // TODO: fetch from contract pending payments
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header Card */}
-      <div className="card p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Guard Wallet</h1>
-            <p className="mt-1.5 font-mono text-sm text-fg-muted truncate max-w-[300px] sm:max-w-none">
-              {guardData.address}
-            </p>
-          </div>
-          <div className="sm:text-right">
-            <p className="text-xs font-medium text-fg-muted uppercase tracking-wider">Balance</p>
-            <p className="text-3xl font-semibold tracking-tight mt-1">
-              ${parseFloat(guardData.balance).toFixed(2)}
-              <span className="text-base font-medium text-fg-muted ml-1">USDC</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Quick fund */}
-        <div className="flex gap-3 mt-4 pt-4 border-t border-border">
-          <div className="flex flex-1">
-            <span className="px-3 py-2 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
-              $
-            </span>
-            <input
-              type="number"
-              placeholder="Amount"
-              value={fundAmount}
-              onChange={(e) => setFundAmount(e.target.value)}
-              className="input rounded-l-none flex-1"
-            />
-          </div>
-          <button 
-            onClick={handleFund}
-            disabled={isFunding || !fundAmount}
-            className="btn-primary flex items-center gap-2"
-          >
-            {isFunding && <LoadingSpinner />}
-            Fund
-          </button>
-        </div>
-      </div>
-
-      {/* Daily Spending Progress */}
-      <div className="card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold">Today&apos;s Spending</h2>
-          <span className="text-sm text-fg-muted">
-            Resets in {guardData.timeUntilReset}
-          </span>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className="relative h-2 bg-bg-elevated rounded-full overflow-hidden">
-          <div 
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-700 ease-out"
-            style={{ width: `${spendingPercentage}%` }}
-          />
-        </div>
-        
-        <div className="flex justify-between mt-3 text-sm">
-          <span className="text-fg-secondary">${parseFloat(guardData.dailySpent).toFixed(2)} spent</span>
-          <span className="text-fg-muted">
-            ${parseFloat(guardData.remainingBudget).toFixed(2)} remaining of ${parseFloat(guardData.dailyLimit).toFixed(2)}
-          </span>
-        </div>
-      </div>
-
-      {/* Payment Test Panel - NEW */}
-      <PaymentTestPanel 
-        guardAddress={guardAddress} 
-        makeE2EPayment={makeE2EPayment}
-      />
-
-      {/* Pending Approvals */}
-      {pendingApprovals.length > 0 && (
-        <div className="card border-warning/30 bg-warning-muted/30 p-6 animate-slide-up">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-2 h-2 rounded-full bg-warning animate-pulse-glow" />
-            <h2 className="font-semibold text-warning">
-              Pending Approval{pendingApprovals.length > 1 ? 's' : ''} ({pendingApprovals.length})
-            </h2>
-          </div>
-          
-          {pendingApprovals.map((approval, idx) => (
-            <div 
-              key={idx} 
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-bg-secondary rounded-xl border border-border"
-            >
-              <div>
-                <p className="text-lg font-semibold">${approval.amount} USDC</p>
-                <p className="font-mono text-sm text-fg-secondary mt-0.5">{approval.endpoint}</p>
-                <p className="text-xs text-fg-muted mt-1">Requested {timeAgo(approval.timestamp)}</p>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => approvePayment(idx)}
-                  className="btn-success flex items-center gap-1.5"
-                >
-                  <CheckIcon />
-                  Approve
-                </button>
-                <button 
-                  onClick={() => rejectPayment(idx)}
-                  className="btn-danger flex items-center gap-1.5"
-                >
-                  <XIcon />
-                  Reject
-                </button>
-              </div>
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Status Banner */}
+      {needsFunding && (
+        <div className="card p-6 bg-warning-muted/20 border-2 border-warning">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-warning">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tab Navigation */}
-      <div className="flex gap-1 p-1 bg-bg-secondary rounded-xl border border-border">
-        {(["overview", "policies", "endpoints", "test"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium capitalize transition-all duration-200
-              ${activeTab === tab 
-                ? 'bg-bg-elevated text-fg-primary shadow-sm' 
-                : 'text-fg-muted hover:text-fg-secondary'
-              }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === "overview" && (
-        <div className="card overflow-hidden animate-fade-in">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="font-semibold">Recent Transactions</h2>
-          </div>
-          
-          {transactions.length === 0 ? (
-            <div className="px-6 py-12 text-center text-fg-muted">
-              No transactions yet
-            </div>
-          ) : (
-            <div className="divide-y divide-border/50">
-              {transactions.map((tx, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex items-center justify-between px-6 py-4 hover:bg-bg-tertiary/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div 
-                      className={`w-8 h-8 rounded-full flex items-center justify-center
-                        ${tx.status === "success" 
-                          ? 'bg-success-muted text-success' 
-                          : 'bg-error-muted text-error'
-                        }`}
-                    >
-                      {tx.status === "success" ? <CheckIcon /> : <XIcon />}
-                    </div>
-                    <div>
-                      <p className="font-mono text-sm font-medium truncate max-w-[200px]">{tx.endpoint}</p>
-                      <p className="text-xs text-fg-muted mt-0.5">{timeAgo(tx.timestamp)}</p>
-                      {tx.txHash && (
-                        <p className="text-xs font-mono text-fg-muted mt-0.5 truncate max-w-[200px]">
-                          {tx.txHash}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p 
-                      className={`text-sm font-semibold
-                        ${tx.status === "blocked" ? 'text-error line-through' : ''}`}
-                    >
-                      ${tx.amount}
-                    </p>
-                    {tx.status === "blocked" && tx.blockReason && (
-                      <span className="badge-error text-[10px]">{tx.blockReason}</span>
-                    )}
-                    {tx.explorerUrl && (
-                      <a 
-                        href={tx.explorerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-accent hover:underline flex items-center gap-1 mt-1"
-                      >
-                        View <ExternalLinkIcon />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "policies" && (
-        <div className="card p-6 space-y-6 animate-fade-in">
-          <h2 className="font-semibold">Spending Policies</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { label: "Max Per Transaction", key: "maxPerTransaction" as const },
-              { label: "Daily Limit", key: "dailyLimit" as const },
-              { label: "Require Approval Above", key: "approvalThreshold" as const }
-            ].map((field) => (
-              <div key={field.key}>
-                <label className="block text-sm font-medium text-fg-secondary mb-2">
-                  {field.label}
-                </label>
-                <div className="flex">
-                  <span className="px-3.5 py-2.5 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">⚠️ Your Guard needs funding</h3>
+              <p className="text-fg-secondary mb-4">
+                Add USDC to your Guard wallet so it can pay for API calls on your AI agent&apos;s behalf.
+              </p>
+              <div className="flex gap-3">
+                <div className="flex flex-1 max-w-xs">
+                  <span className="px-3 py-2 bg-bg-elevated border border-border border-r-0 rounded-l-lg text-fg-muted text-sm">
                     $
                   </span>
                   <input
                     type="number"
-                    value={policyForm[field.key]}
-                    onChange={(e) => setPolicyForm({ ...policyForm, [field.key]: e.target.value })}
-                    className="input rounded-l-none"
+                    placeholder="Amount"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    className="input rounded-l-none flex-1"
                   />
+                </div>
+                <button 
+                  onClick={handleFund}
+                  disabled={isFunding || !fundAmount}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  {isFunding && <LoadingSpinner />}
+                  Fund Guard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guard Overview */}
+      <div className="card p-6">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold">Your Guard Wallet</h1>
+            <p className="text-sm text-fg-muted mt-1 font-mono">{guardAddress}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-fg-muted">Current Balance</p>
+            <p className="text-3xl font-bold">
+              ${parseFloat(guardData.balance).toFixed(2)}
+              <span className="text-lg text-fg-muted ml-1">USDC</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-bg-elevated rounded-lg">
+            <p className="text-xs text-fg-muted mb-1">Max Per Transaction</p>
+            <p className="text-xl font-semibold">${guardData.maxPerTransaction}</p>
+          </div>
+          <div className="p-4 bg-bg-elevated rounded-lg">
+            <p className="text-xs text-fg-muted mb-1">Daily Limit</p>
+            <p className="text-xl font-semibold">${guardData.dailyLimit}</p>
+          </div>
+          <div className="p-4 bg-bg-elevated rounded-lg">
+            <p className="text-xs text-fg-muted mb-1">Spent Today</p>
+            <p className="text-xl font-semibold">${guardData.dailySpent}</p>
+          </div>
+        </div>
+
+        {/* Spending Progress */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium">Daily Spending</p>
+            <p className="text-sm text-fg-muted">Resets in {guardData.timeUntilReset}</p>
+          </div>
+          <div className="relative h-3 bg-bg-elevated rounded-full overflow-hidden">
+            <div 
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all"
+              style={{ width: `${spendingPercentage}%` }}
+            />
+          </div>
+          <p className="text-xs text-fg-muted mt-1">
+            ${guardData.remainingBudget} remaining of ${guardData.dailyLimit}
+          </p>
+        </div>
+      </div>
+
+      {/* Whitelist Endpoints */}
+      <div className="card p-6">
+        <h2 className="text-xl font-semibold mb-2">Whitelisted API Endpoints</h2>
+        <p className="text-fg-secondary text-sm mb-6">
+          Only these APIs can receive payments from your Guard. Add endpoints your AI agent needs to call.
+        </p>
+
+        <div className="p-4 bg-bg-elevated rounded-lg mb-4">
+          <label className="block text-sm font-medium mb-2">Add New Endpoint</label>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="api.openai.com"
+              value={newEndpoint}
+              onChange={(e) => setNewEndpoint(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && newEndpoint) {
+                  handleAddEndpoint();
+                }
+              }}
+              className="input flex-1"
+            />
+            <button 
+              onClick={handleAddEndpoint}
+              disabled={isAddingEndpoint || !newEndpoint}
+              className="btn-primary flex items-center gap-2"
+            >
+              {isAddingEndpoint && <LoadingSpinner />}
+              Add
+            </button>
+          </div>
+          <p className="text-xs text-fg-muted mt-2">
+            Example: <code className="bg-bg-tertiary px-1 py-0.5 rounded">api.openai.com</code>, <code className="bg-bg-tertiary px-1 py-0.5 rounded">api.anthropic.com</code>
+          </p>
+        </div>
+
+        {endpoints.length === 0 ? (
+          <div className="text-center py-8 bg-bg-elevated rounded-lg border border-dashed border-border">
+            <p className="text-fg-muted">No endpoints whitelisted yet</p>
+            <p className="text-sm text-fg-muted mt-1">Add your first endpoint above</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {endpoints.map((ep) => (
+              <div key={ep.endpoint} className="flex items-center justify-between p-3 bg-bg-tertiary rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckIcon />
+                  <span className="font-mono text-sm">{ep.endpoint}</span>
+                </div>
+                <button 
+                  onClick={() => removeEndpoint(ep.endpoint)}
+                  className="text-sm text-error hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Test Payment to Whitelisted Endpoint */}
+      {endpoints.length > 0 && (
+        <TestPaymentSection guardAddress={guardAddress} endpoints={endpoints} />
+      )}
+
+      {/* Recent Activity */}
+      <div className="card p-6">
+        <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
+        
+        {transactions.length === 0 ? (
+          <div className="text-center py-8 text-fg-muted">
+            No transactions yet. Once your AI agent makes API calls, they&apos;ll appear here.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {transactions.map((tx, idx) => (
+              <div key={idx} className="flex items-center justify-between p-4 bg-bg-elevated rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    tx.status === "success" ? 'bg-success-muted text-success' : 'bg-error-muted text-error'
+                  }`}>
+                    {tx.status === "success" ? <CheckIcon /> : <XIcon />}
+                  </div>
+                  <div>
+                    <p className="font-medium">{tx.endpoint}</p>
+                    <p className="text-sm text-fg-muted">{timeAgo(tx.timestamp)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold">${tx.amount}</p>
+                  {tx.status === "blocked" && tx.blockReason && (
+                    <p className="text-xs text-error">{tx.blockReason}</p>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-
-          <button 
-            onClick={handleUpdatePolicy}
-            disabled={isUpdatingPolicy}
-            className="btn-primary flex items-center gap-2"
-          >
-            {isUpdatingPolicy && <LoadingSpinner />}
-            Update Policies
-          </button>
-        </div>
-      )}
-
-      {activeTab === "endpoints" && (
-        <div className="card p-6 space-y-6 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="font-semibold">Allowed Endpoints</h2>
-              <p className="text-sm text-fg-muted mt-1">
-                Whitelist API endpoints that your AI agent can call
-              </p>
-            </div>
-            <label className="flex items-center gap-3 cursor-pointer group">
-              <input 
-                type="checkbox" 
-                checked={guardData.allowAllEndpoints}
-                onChange={(e) => toggleAllowAllEndpoints(e.target.checked)}
-                className="w-4 h-4 rounded bg-bg-tertiary border-border accent-accent"
-              />
-              <span className="text-sm text-fg-muted group-hover:text-fg-secondary transition-colors">
-                Allow all endpoints
-              </span>
-            </label>
-          </div>
-          
-          {!guardData.allowAllEndpoints && (
-            <>
-              {/* Add Endpoint Form - Prominent at top */}
-              <div className="p-4 bg-bg-elevated border border-border rounded-xl">
-                <label className="block text-sm font-medium text-fg-secondary mb-3">
-                  Add New Endpoint
-                </label>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    placeholder="api.example.com/endpoint"
-                    value={newEndpoint}
-                    onChange={(e) => setNewEndpoint(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && newEndpoint) {
-                        handleAddEndpoint();
-                      }
-                    }}
-                    className="input flex-1"
-                  />
-                  <button 
-                    onClick={handleAddEndpoint}
-                    disabled={isAddingEndpoint || !newEndpoint}
-                    className="btn-primary whitespace-nowrap flex items-center gap-2 px-6"
-                  >
-                    {isAddingEndpoint && <LoadingSpinner />}
-                    {isAddingEndpoint ? 'Adding...' : 'Add Endpoint'}
-                  </button>
-                </div>
-                <p className="text-xs text-fg-muted mt-2">
-                  Example: <code className="bg-bg-tertiary px-1.5 py-0.5 rounded">api.openai.com</code> or <code className="bg-bg-tertiary px-1.5 py-0.5 rounded">api.anthropic.com/v1</code>
-                </p>
-              </div>
-
-              {/* Endpoint List */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-fg-secondary">
-                    Whitelisted Endpoints ({endpoints.length})
-                  </h3>
-                </div>
-                
-                {endpoints.length === 0 ? (
-                  <div className="text-center py-8 px-4 bg-bg-elevated rounded-xl border border-dashed border-border">
-                    <svg 
-                      className="w-12 h-12 mx-auto mb-3 text-fg-muted opacity-50" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    <p className="text-fg-muted text-sm">No endpoints whitelisted yet</p>
-                    <p className="text-fg-muted text-xs mt-1">Add an endpoint above to get started</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {endpoints.map((ep) => (
-                      <div 
-                        key={ep.endpoint} 
-                        className="flex items-center justify-between p-4 bg-bg-tertiary rounded-xl border border-border/50 group hover:border-border transition-colors"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-success-muted flex items-center justify-center flex-shrink-0">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-success">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-mono text-sm font-medium truncate">{ep.endpoint}/*</p>
-                            <p className="text-xs text-fg-muted mt-0.5">
-                              Added {new Date(ep.addedAt * 1000).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => removeEndpoint(ep.endpoint)}
-                          className="text-sm font-medium text-error opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 hover:bg-error-muted rounded-lg ml-3"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {activeTab === "test" && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="card p-6">
-            <h2 className="font-semibold mb-4">E2E Payment Testing</h2>
-            <p className="text-fg-secondary text-sm mb-4">
-              This tab demonstrates the full end-to-end payment flow with automatic cross-chain bridging.
-              Enter any x402-enabled API endpoint and the Guard will:
-            </p>
-            <ol className="list-decimal list-inside space-y-2 text-sm text-fg-secondary mb-6">
-              <li>Detect the target chain and payment requirements</li>
-              <li>Bridge USDC from Base to the target chain</li>
-              <li>Make the payment to the API endpoint</li>
-              <li>Return the API response</li>
-            </ol>
-            <div className="p-4 bg-accent/5 border border-accent/20 rounded-lg">
-              <p className="text-sm text-fg-secondary">
-                <strong>Note:</strong> For this demo, you&apos;ll need to have USDC on Base Sepolia in the Guard wallet.
-                The bridging process may take a few minutes to complete.
-              </p>
-            </div>
-          </div>
-
-          <PaymentTestPanel 
-            guardAddress={guardAddress} 
-            makeE2EPayment={makeE2EPayment}
-          />
-        </div>
-      )}
-      
-      {/* Proxy URL */}
-      <div className="card p-6">
-        <h2 className="font-semibold">Your Proxy URL</h2>
-        <p className="text-sm text-fg-secondary mt-1.5 leading-relaxed">
-          Point your AI agent to this URL to route payments through your Guard wallet
-        </p>
-        
-        <div className="flex gap-3 mt-5">
-          <code className="flex-1 px-4 py-3 bg-bg-primary border border-border rounded-lg font-mono text-sm text-success break-all">
-            https://guard.x402.io/{guardData.address}/
-          </code>
-          <button 
-            onClick={handleCopy}
-            className="btn-secondary flex items-center gap-2 shrink-0"
-          >
-            <CopyIcon />
-            {copied ? 'Copied!' : 'Copy'}
-          </button>
-        </div>
-        
-        <p className="text-sm text-fg-muted mt-4">
-          Example:{" "}
-          <code className="font-mono text-fg-secondary">
-            https://guard.x402.io/{guardData.address.slice(0, 10)}.../<span className="text-accent">api.openai.com</span>/v1/chat
-          </code>
-        </p>
+        )}
       </div>
-    </div>
-  );
-}
-
-function DebugChainInfo() {
-  const { chainId, address, isConnected, publicClient, walletClient } = useWeb3();
-  const [rawChainId, setRawChainId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const getDirectChainId = async () => {
-      if (typeof window !== "undefined" && window.ethereum) {
-        try {
-          const hex = await window.ethereum.request({ method: "eth_chainId" });
-          setRawChainId(`${hex} (${parseInt(hex, 16)})`);
-        } catch (e) {
-          setRawChainId("error fetching");
-        }
-      }
-    };
-    getDirectChainId();
-  }, []);
-
-  return (
-    <div className="card p-4 mb-4 bg-yellow-900/20 border-yellow-500/50 text-sm font-mono">
-      <p><strong>DEBUG INFO</strong></p>
-      <p>Context chainId: {chainId ?? "null"}</p>
-      <p>Direct from wallet: {rawChainId ?? "loading..."}</p>
-      <p>Address: {address ?? "null"}</p>
-      <p>isConnected: {String(isConnected)}</p>
-      <p>publicClient: {publicClient ? "✓" : "✗"}</p>
-      <p>walletClient: {walletClient ? "✓" : "✗"}</p>
     </div>
   );
 }
 
 // Main page component
 export default function Home() {
-  const { isConnected, address } = useWeb3();
-  const { guards, isLoading: isLoadingGuards } = useUserGuards();
-  const [selectedGuard, setSelectedGuard] = useState<Address | null>(null);
-
-  // Auto-select first guard when loaded
-  useEffect(() => {
-    if (guards.length > 0 && !selectedGuard) {
-      setSelectedGuard(guards[0]);
-    }
-  }, [guards, selectedGuard]);
+  const { isConnected } = useWeb3();
+  const { guards, isLoading } = useUserGuards();
 
   if (!isConnected) {
     return <NotConnectedView />;
   }
 
-  if (isLoadingGuards) {
+  if (isLoading) {
     return (
-      <div className="card p-12 text-center">
+      <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner />
-        <p className="text-fg-muted mt-4">Loading your guards...</p>
       </div>
     );
   }
 
   if (guards.length === 0) {
-    return <NoGuardsView />;
+    return <GuardSetupWizard />;
   }
 
-  return (
-    <>
-      {/*<DebugChainInfo />*/} 
-      <GuardSelector 
-        guards={guards} 
-        selected={selectedGuard} 
-        onSelect={setSelectedGuard} 
-      />
-      {selectedGuard && <GuardDashboard guardAddress={selectedGuard} />}
-    </>
-  );
+  return <GuardDashboard guardAddress={guards[0]} />;
 }
