@@ -2,9 +2,19 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  turbopack: {},
   
   webpack: (config, { isServer }) => {
+    // Ignore test files
+    if (config.plugins) {
+      const webpack = require('webpack');
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /\.(test|spec)\.(js|ts|jsx|tsx|mjs)$/,
+          contextRegExp: /node_modules/,
+        })
+      );
+    }
+
     // Fix for WalletConnect / Pino logger issues with SSR
     if (!isServer) {
       config.resolve.fallback = {
