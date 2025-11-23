@@ -5,6 +5,12 @@ import { Address, parseUnits, formatUnits, keccak256, toBytes } from "viem";
 import { useWeb3 } from "./providers";
 import { GUARD_ABI, FACTORY_ABI, ERC20_ABI, CONTRACTS } from "@/lib/contracts";
 import * as amp from "@/lib/amp";
+import * as mock from "@/lib/mock-data";
+
+// ===== MOCK MODE TOGGLE =====
+// Set to true to use mock data (no contracts needed)
+// Set to false to use real contracts
+const USE_MOCK_MODE = process.env.NEXT_PUBLIC_USE_MOCK === "true" || true; // Default to mock for now
 
 // ===== Exported Types =====
 
@@ -65,6 +71,14 @@ function formatTimeUntilReset(seconds: number): string {
   return `${minutes}m`;
 }
 
+function getTimeUntilMidnight(): string {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const seconds = Math.floor((midnight.getTime() - now.getTime()) / 1000);
+  return formatTimeUntilReset(seconds);
+}
+
 // ===== useGuard Hook =====
 
 export function useGuard(guardAddress?: Address) {
@@ -77,113 +91,155 @@ export function useGuard(guardAddress?: Address) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch guard data from contract
+  // Fetch guard data - MOCK or REAL
   const fetchGuardData = useCallback(async () => {
-    if (!publicClient || !guardAddress) return;
+    if (!guardAddress) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      // Batch read contract calls
-      const [
-        owner,
-        agent,
-        balance,
-        dailySpent,
-        totalSpent,
-        dailyLimit,
-        maxPerTransaction,
-        approvalThreshold,
-        remainingBudget,
-        timeUntilReset,
-        allowAllEndpoints,
-      ] = await Promise.all([
-        publicClient.readContract({
+      if (USE_MOCK_MODE) {
+        // === MOCK MODE ===
+        console.log("[MOCK] Fetching guard data for", guardAddress);
+        const mockData = mock.getMockGuardData(guardAddress);
+        
+        const dailyLimit = parseFloat(mockData.config.dailyLimit);
+        const dailySpent = parseFloat(mockData.dailySpent);
+        
+        setGuardData({
           address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "owner",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "agent",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "getBalance",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "dailySpent",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "totalSpent",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "dailyLimit",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "maxPerTransaction",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "approvalThreshold",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "getRemainingDailyBudget",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "getTimeUntilReset",
-        }),
-        publicClient.readContract({
-          address: guardAddress,
-          abi: GUARD_ABI,
-          functionName: "allowAllEndpoints",
-        }),
-      ]);
+          owner: address || "0x0000000000000000000000000000000000000000" as Address,
+          agent: address || "0x0000000000000000000000000000000000000000" as Address,
+          balance: mockData.balance,
+          dailySpent: mockData.dailySpent,
+          totalSpent: mockData.stats.totalSpent,
+          dailyLimit: mockData.config.dailyLimit,
+          maxPerTransaction: mockData.config.maxPerTransaction,
+          approvalThreshold: mockData.config.approvalThreshold,
+          remainingBudget: (dailyLimit - dailySpent).toFixed(2),
+          timeUntilReset: getTimeUntilMidnight(),
+          allowAllEndpoints: mockData.config.allowAllEndpoints,
+        });
+        
+        setEndpoints(mockData.endpoints);
+        setTransactions(mockData.transactions);
+        
+        // Convert pending approvals to pending payments format
+        setPendingPayments(mockData.pendingApprovals.map((a, idx) => ({
+          id: parseInt(a.approvalId),
+          to: "0x0000000000000000000000000000000000000000" as Address,
+          amount: a.amount,
+          endpointHash: a.endpoint,
+          expiry: a.requestedAt + 86400,
+          executed: false,
+          rejected: false,
+        })));
+        
+      } else {
+        // === REAL CONTRACT MODE ===
+        if (!publicClient) {
+          throw new Error("Public client not available");
+        }
 
-      setGuardData({
-        address: guardAddress,
-        owner: owner as Address,
-        agent: agent as Address,
-        balance: formatUnits(balance as bigint, 6),
-        dailySpent: formatUnits(dailySpent as bigint, 6),
-        totalSpent: formatUnits(totalSpent as bigint, 6),
-        dailyLimit: formatUnits(dailyLimit as bigint, 6),
-        maxPerTransaction: formatUnits(maxPerTransaction as bigint, 6),
-        approvalThreshold: formatUnits(approvalThreshold as bigint, 6),
-        remainingBudget: formatUnits(remainingBudget as bigint, 6),
-        timeUntilReset: formatTimeUntilReset(Number(timeUntilReset)),
-        allowAllEndpoints: allowAllEndpoints as boolean,
-      });
-
-      // Fetch AMP data
-      try {
-        const [ampEndpoints, ampTransactions] = await Promise.all([
-          amp.getEndpoints(guardAddress),
-          amp.getTransactions(guardAddress),
+        // Batch read contract calls
+        const [
+          owner,
+          agent,
+          balance,
+          dailySpent,
+          totalSpent,
+          dailyLimit,
+          maxPerTransaction,
+          approvalThreshold,
+          remainingBudget,
+          timeUntilReset,
+          allowAllEndpoints,
+        ] = await Promise.all([
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "owner",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "agent",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "getBalance",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "dailySpent",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "totalSpent",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "dailyLimit",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "maxPerTransaction",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "approvalThreshold",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "getRemainingDailyBudget",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "getTimeUntilReset",
+          }),
+          publicClient.readContract({
+            address: guardAddress,
+            abi: GUARD_ABI,
+            functionName: "allowAllEndpoints",
+          }),
         ]);
-        setEndpoints(ampEndpoints);
-        setTransactions(ampTransactions);
-      } catch (ampErr) {
-        console.warn("AMP data fetch failed (AMP may not be running):", ampErr);
-        // Continue without AMP data
-      }
 
+        setGuardData({
+          address: guardAddress,
+          owner: owner as Address,
+          agent: agent as Address,
+          balance: formatUnits(balance as bigint, 6),
+          dailySpent: formatUnits(dailySpent as bigint, 6),
+          totalSpent: formatUnits(totalSpent as bigint, 6),
+          dailyLimit: formatUnits(dailyLimit as bigint, 6),
+          maxPerTransaction: formatUnits(maxPerTransaction as bigint, 6),
+          approvalThreshold: formatUnits(approvalThreshold as bigint, 6),
+          remainingBudget: formatUnits(remainingBudget as bigint, 6),
+          timeUntilReset: formatTimeUntilReset(Number(timeUntilReset)),
+          allowAllEndpoints: allowAllEndpoints as boolean,
+        });
+
+        // Fetch AMP data
+        try {
+          const [ampEndpoints, ampTransactions] = await Promise.all([
+            amp.getEndpoints(guardAddress),
+            amp.getTransactions(guardAddress),
+          ]);
+          setEndpoints(ampEndpoints);
+          setTransactions(ampTransactions);
+        } catch (ampErr) {
+          console.warn("AMP data fetch failed (AMP may not be running):", ampErr);
+        }
+      }
     } catch (err: unknown) {
       console.error("Error fetching guard data:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to fetch guard data";
@@ -191,23 +247,30 @@ export function useGuard(guardAddress?: Address) {
     } finally {
       setIsLoading(false);
     }
-  }, [publicClient, guardAddress]);
+  }, [publicClient, guardAddress, address]);
 
   // Auto-fetch on mount and when dependencies change
   useEffect(() => {
-    if (guardAddress && publicClient) {
+    if (guardAddress) {
       fetchGuardData();
     }
-  }, [guardAddress, publicClient, fetchGuardData]);
+  }, [guardAddress, fetchGuardData]);
 
   // Set policy
   const setPolicy = useCallback(
     async (maxPerTx: string, dailyLimit: string, approvalThreshold: string) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Setting policy");
+        if (guardAddress) {
+          mock.mockSetPolicy(guardAddress, maxPerTx, dailyLimit, approvalThreshold);
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
-
-      console.log("Setting policy with walletClient:", walletClient);
 
       const hash = await walletClient.writeContract({
         address: guardAddress,
@@ -230,6 +293,12 @@ export function useGuard(guardAddress?: Address) {
   // Set agent
   const setAgent = useCallback(
     async (newAgent: Address) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Setting agent to", newAgent);
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -251,6 +320,15 @@ export function useGuard(guardAddress?: Address) {
   // Add endpoint
   const addEndpoint = useCallback(
     async (url: string) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Adding endpoint", url);
+        if (guardAddress) {
+          mock.mockAddEndpoint(guardAddress, url);
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -272,6 +350,15 @@ export function useGuard(guardAddress?: Address) {
   // Remove endpoint
   const removeEndpoint = useCallback(
     async (url: string) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Removing endpoint", url);
+        if (guardAddress) {
+          mock.mockRemoveEndpoint(guardAddress, url);
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -293,6 +380,15 @@ export function useGuard(guardAddress?: Address) {
   // Toggle allow all endpoints
   const toggleAllowAllEndpoints = useCallback(
     async (allowAll: boolean) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Toggle allow all endpoints:", allowAll);
+        if (guardAddress) {
+          mock.mockToggleAllowAllEndpoints(guardAddress, allowAll);
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -314,6 +410,15 @@ export function useGuard(guardAddress?: Address) {
   // Approve payment
   const approvePayment = useCallback(
     async (paymentId: number) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Approving payment", paymentId);
+        if (guardAddress) {
+          mock.mockApprovePayment(guardAddress, paymentId.toString());
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -335,6 +440,15 @@ export function useGuard(guardAddress?: Address) {
   // Reject payment
   const rejectPayment = useCallback(
     async (paymentId: number) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Rejecting payment", paymentId);
+        if (guardAddress) {
+          mock.mockRejectPayment(guardAddress, paymentId.toString());
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -356,6 +470,15 @@ export function useGuard(guardAddress?: Address) {
   // Fund guard
   const fund = useCallback(
     async (amount: string) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Funding guard with", amount);
+        if (guardAddress) {
+          mock.mockFund(guardAddress, amount);
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address || !chainId) {
         throw new Error("Wallet not connected");
       }
@@ -394,6 +517,15 @@ export function useGuard(guardAddress?: Address) {
   // Withdraw
   const withdraw = useCallback(
     async (amount: string) => {
+      if (USE_MOCK_MODE) {
+        console.log("[MOCK] Withdrawing", amount);
+        if (guardAddress) {
+          mock.mockWithdraw(guardAddress, amount);
+        }
+        await fetchGuardData();
+        return "0xmockhash";
+      }
+
       if (!walletClient || !publicClient || !guardAddress || !address) {
         throw new Error("Wallet not connected");
       }
@@ -414,6 +546,16 @@ export function useGuard(guardAddress?: Address) {
 
   // Withdraw all
   const withdrawAll = useCallback(async () => {
+    if (USE_MOCK_MODE) {
+      console.log("[MOCK] Withdrawing all");
+      if (guardAddress) {
+        const mockData = mock.getMockGuardData(guardAddress);
+        mock.mockWithdraw(guardAddress, mockData.balance);
+      }
+      await fetchGuardData();
+      return "0xmockhash";
+    }
+
     if (!walletClient || !publicClient || !guardAddress || !address) {
       throw new Error("Wallet not connected");
     }
@@ -461,26 +603,38 @@ export function useUserGuards() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchGuards = useCallback(async () => {
-    if (!publicClient || !address || !chainId) return;
-
-    const contracts = CONTRACTS[chainId as keyof typeof CONTRACTS];
-    if (!contracts?.factory) {
-      setError("Factory contract not configured for this chain");
-      return;
-    }
+    if (!address) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const userGuards = await publicClient.readContract({
-        address: contracts.factory as Address,
-        abi: FACTORY_ABI,
-        functionName: "getGuardsByOwner",
-        args: [address],
-      });
+      if (USE_MOCK_MODE) {
+        // === MOCK MODE ===
+        console.log("[MOCK] Fetching guards for", address);
+        const mockGuards = mock.getMockUserGuards(address);
+        setGuards(mockGuards as Address[]);
+      } else {
+        // === REAL CONTRACT MODE ===
+        if (!publicClient || !chainId) {
+          throw new Error("Not connected");
+        }
 
-      setGuards(userGuards as Address[]);
+        const contracts = CONTRACTS[chainId as keyof typeof CONTRACTS];
+        if (!contracts?.factory) {
+          setError(`Factory contract not configured for chain ${chainId}. Please add it to CONTRACTS in lib/contracts.ts`);
+          return;
+        }
+
+        const userGuards = await publicClient.readContract({
+          address: contracts.factory as Address,
+          abi: FACTORY_ABI,
+          functionName: "getGuardsByOwner",
+          args: [address],
+        });
+
+        setGuards(userGuards as Address[]);
+      }
     } catch (err: unknown) {
       console.error("Error fetching guards:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to fetch guards";
@@ -511,14 +665,8 @@ export function useCreateGuard() {
       dailyLimit: string,
       approvalThreshold: string
     ): Promise<Address | null> => {
-      if (!walletClient || !publicClient || !address || !chainId) {
+      if (!address) {
         setError("Wallet not connected");
-        return null;
-      }
-
-      const contracts = CONTRACTS[chainId as keyof typeof CONTRACTS];
-      if (!contracts?.factory) {
-        setError("Factory contract not configured for this chain");
         return null;
       }
 
@@ -526,6 +674,33 @@ export function useCreateGuard() {
       setError(null);
 
       try {
+        if (USE_MOCK_MODE) {
+          // === MOCK MODE ===
+          console.log("[MOCK] Creating guard");
+          // Simulate network delay
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          const newGuard = mock.mockCreateGuard(
+            address,
+            agent,
+            maxPerTx,
+            dailyLimit,
+            approvalThreshold
+          );
+          return newGuard as Address;
+        }
+
+        // === REAL CONTRACT MODE ===
+        if (!walletClient || !publicClient || !chainId) {
+          setError("Wallet not connected");
+          return null;
+        }
+
+        const contracts = CONTRACTS[chainId as keyof typeof CONTRACTS];
+        if (!contracts?.factory) {
+          setError(`Factory contract not configured for chain ${chainId}. Please add it to CONTRACTS in lib/contracts.ts`);
+          return null;
+        }
+
         const hash = await walletClient.writeContract({
           address: contracts.factory as Address,
           abi: FACTORY_ABI,
@@ -547,7 +722,6 @@ export function useCreateGuard() {
         });
 
         if (guardCreatedLog && guardCreatedLog.topics[1]) {
-          // Guard address is the first indexed param
           const guardAddress = `0x${guardCreatedLog.topics[1].slice(26)}` as Address;
           return guardAddress;
         }
