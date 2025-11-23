@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { z } from "zod";
+import http from "http";
 
 const NWS_API_BASE = "https://api.weather.gov";
 const USER_AGENT = "weather-app/1.0";
@@ -221,9 +222,41 @@ server.tool(
 );
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Weather MCP Server running on stdio");
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+  const httpServer = http.createServer();
+
+  httpServer.on("request", async (req, res) => {
+    // Enable CORS
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+
+    if (req.url === "/sse" && req.method === "GET") {
+      // Handle SSE connection
+      const transport = new SSEServerTransport("/message", res);
+      await server.connect(transport);
+      console.error(`MCP client connected via SSE`);
+    } else if (req.url === "/message" && req.method === "POST") {
+      // This endpoint is handled by the SSE transport
+      res.writeHead(405);
+      res.end("Method not allowed - use SSE endpoint");
+    } else {
+      res.writeHead(404);
+      res.end("Not found");
+    }
+  });
+
+  httpServer.listen(PORT, () => {
+    console.error(`Weather MCP Server running on http://localhost:${PORT}`);
+    console.error(`SSE endpoint: http://localhost:${PORT}/sse`);
+  });
 }
 
 main().catch((error) => {
