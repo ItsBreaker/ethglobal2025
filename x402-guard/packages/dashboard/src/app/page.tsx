@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Address } from "viem";
 import { useWeb3 } from "./providers";
-import { useGuard, useUserGuards, useCreateGuard, Transaction } from "./hooks";
+import { useGuard, useUserGuards, useCreateGuard, Transaction, E2EPaymentResult } from "./hooks";
 
 
 // Icons
@@ -31,6 +31,21 @@ const LoadingSpinner = () => (
   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
+const SendIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13" />
+    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+);
+
+const ExternalLinkIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
   </svg>
 );
 
@@ -284,6 +299,132 @@ function GuardSelector({
   );
 }
 
+// Payment Test Component - NEW
+function PaymentTestPanel({ guardAddress, makeE2EPayment }: { 
+  guardAddress: Address;
+  makeE2EPayment: (targetUrl: string) => Promise<E2EPaymentResult>;
+}) {
+  const [targetUrl, setTargetUrl] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [result, setResult] = useState<E2EPaymentResult | null>(null);
+
+  const handlePayment = async () => {
+    if (!targetUrl) return;
+
+    setIsProcessing(true);
+    setResult(null);
+
+    try {
+      const paymentResult = await makeE2EPayment(targetUrl);
+      setResult(paymentResult);
+    } catch (err) {
+      setResult({
+        success: false,
+        error: err instanceof Error ? err.message : "Payment failed",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="card p-6 space-y-4 border-2 border-accent/20">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+          <SendIcon />
+        </div>
+        <div>
+          <h2 className="font-semibold">Test E2E Payment</h2>
+          <p className="text-sm text-fg-muted">Make a cross-chain payment with automatic bridging</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-fg-secondary mb-2">
+          Target x402 API Endpoint
+        </label>
+        <input
+          type="text"
+          placeholder="https://api.example.com/v1/endpoint"
+          value={targetUrl}
+          onChange={(e) => setTargetUrl(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && targetUrl && !isProcessing) {
+              handlePayment();
+            }
+          }}
+          className="input w-full font-mono text-sm"
+          disabled={isProcessing}
+        />
+        <p className="text-xs text-fg-muted mt-1.5">
+          Enter the URL of an x402-enabled API endpoint. The Guard will automatically bridge funds and make the payment.
+        </p>
+      </div>
+
+      <button 
+        onClick={handlePayment}
+        disabled={isProcessing || !targetUrl}
+        className="btn-primary w-full flex items-center justify-center gap-2"
+      >
+        {isProcessing ? (
+          <>
+            <LoadingSpinner />
+            Processing Payment...
+          </>
+        ) : (
+          <>
+            <SendIcon />
+            Send Payment
+          </>
+        )}
+      </button>
+
+      {result && (
+        <div className={`p-4 rounded-lg border-2 ${
+          result.success 
+            ? 'bg-success-muted/30 border-success' 
+            : 'bg-error-muted/30 border-error'
+        }`}>
+          <div className="flex items-center gap-2 mb-2">
+            {result.success ? (
+              <CheckIcon />
+            ) : (
+              <XIcon />
+            )}
+            <span className="font-semibold">
+              {result.success ? 'Payment Successful!' : 'Payment Failed'}
+            </span>
+          </div>
+          
+          {result.success && result.txHash && (
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-fg-muted">Transaction Hash:</span>
+                <p className="font-mono text-xs break-all">{result.txHash}</p>
+              </div>
+              {result.explorerUrl && (
+                <a 
+                  href={result.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-accent hover:underline"
+                >
+                  View on Explorer
+                  <ExternalLinkIcon />
+                </a>
+              )}
+            </div>
+          )}
+
+          {!result.success && result.error && (
+            <p className="text-sm text-error">{result.error}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Main dashboard component
 function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
   const {
@@ -301,9 +442,10 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
     rejectPayment,
     fund,
     withdraw,
+    makeE2EPayment,
   } = useGuard(guardAddress);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "policies" | "endpoints">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "policies" | "endpoints" | "test">("overview");
   const [copied, setCopied] = useState(false);
   const [newEndpoint, setNewEndpoint] = useState("");
   const [policyForm, setPolicyForm] = useState({
@@ -480,6 +622,12 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
         </div>
       </div>
 
+      {/* Payment Test Panel - NEW */}
+      <PaymentTestPanel 
+        guardAddress={guardAddress} 
+        makeE2EPayment={makeE2EPayment}
+      />
+
       {/* Pending Approvals */}
       {pendingApprovals.length > 0 && (
         <div className="card border-warning/30 bg-warning-muted/30 p-6 animate-slide-up">
@@ -523,7 +671,7 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
 
       {/* Tab Navigation */}
       <div className="flex gap-1 p-1 bg-bg-secondary rounded-xl border border-border">
-        {(["overview", "policies", "endpoints"] as const).map((tab) => (
+        {(["overview", "policies", "endpoints", "test"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -567,8 +715,13 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
                       {tx.status === "success" ? <CheckIcon /> : <XIcon />}
                     </div>
                     <div>
-                      <p className="font-mono text-sm font-medium">{tx.endpoint}</p>
+                      <p className="font-mono text-sm font-medium truncate max-w-[200px]">{tx.endpoint}</p>
                       <p className="text-xs text-fg-muted mt-0.5">{timeAgo(tx.timestamp)}</p>
+                      {tx.txHash && (
+                        <p className="text-xs font-mono text-fg-muted mt-0.5 truncate max-w-[200px]">
+                          {tx.txHash}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
@@ -580,6 +733,16 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
                     </p>
                     {tx.status === "blocked" && tx.blockReason && (
                       <span className="badge-error text-[10px]">{tx.blockReason}</span>
+                    )}
+                    {tx.explorerUrl && (
+                      <a 
+                        href={tx.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-accent hover:underline flex items-center gap-1 mt-1"
+                      >
+                        View <ExternalLinkIcon />
+                      </a>
                     )}
                   </div>
                 </div>
@@ -741,6 +904,35 @@ function GuardDashboard({ guardAddress }: { guardAddress: Address }) {
           )}
         </div>
       )}
+
+      {activeTab === "test" && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="card p-6">
+            <h2 className="font-semibold mb-4">E2E Payment Testing</h2>
+            <p className="text-fg-secondary text-sm mb-4">
+              This tab demonstrates the full end-to-end payment flow with automatic cross-chain bridging.
+              Enter any x402-enabled API endpoint and the Guard will:
+            </p>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-fg-secondary mb-6">
+              <li>Detect the target chain and payment requirements</li>
+              <li>Bridge USDC from Base to the target chain</li>
+              <li>Make the payment to the API endpoint</li>
+              <li>Return the API response</li>
+            </ol>
+            <div className="p-4 bg-accent/5 border border-accent/20 rounded-lg">
+              <p className="text-sm text-fg-secondary">
+                <strong>Note:</strong> For this demo, you&apos;ll need to have USDC on Base Sepolia in the Guard wallet.
+                The bridging process may take a few minutes to complete.
+              </p>
+            </div>
+          </div>
+
+          <PaymentTestPanel 
+            guardAddress={guardAddress} 
+            makeE2EPayment={makeE2EPayment}
+          />
+        </div>
+      )}
       
       {/* Proxy URL */}
       <div className="card p-6">
@@ -836,7 +1028,7 @@ export default function Home() {
 
   return (
     <>
-      <DebugChainInfo /> 
+      {/*<DebugChainInfo />*/} 
       <GuardSelector 
         guards={guards} 
         selected={selectedGuard} 

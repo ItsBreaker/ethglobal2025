@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Address } from "viem";
+import { Address, createWalletClient, http, publicActions } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { useWeb3 } from "./providers";
 import * as db from "@/lib/db-browser";
 
@@ -40,12 +41,22 @@ export interface Transaction {
   status: "success" | "blocked";
   blockReason?: string;
   timestamp: number;
+  txHash?: string;
+  explorerUrl?: string;
 }
 
 export interface Endpoint {
   wallet: string;
   endpoint: string;
   addedAt: number;
+}
+
+export interface E2EPaymentResult {
+  success: boolean;
+  result?: any;
+  txHash?: string;
+  explorerUrl?: string;
+  error?: string;
 }
 
 // ===== Helper Functions =====
@@ -174,6 +185,7 @@ export function useGuard(guardAddress?: Address) {
         status: tx.status === 'success' ? 'success' : 'blocked',
         blockReason: tx.error_message,
         timestamp: Math.floor(new Date(tx.created_at || Date.now()).getTime() / 1000),
+        txHash: tx.tx_hash,
       }));
       
       setTransactions(formattedTxs);
@@ -450,6 +462,179 @@ export function useGuard(guardAddress?: Address) {
     return "0xsuccess";
   }, [guardAddress, dbGuardId, guardData]);
 
+  // Make E2E payment through proxy (with manual payment construction)
+  const makeE2EPayment = useCallback(
+    async (targetUrl: string): Promise<E2EPaymentResult> => {
+      if (!guardAddress || !dbGuardId || !guardData) {
+        throw new Error("Guard not initialized");
+      }
+
+      if (!walletClient) {
+        throw new Error("Wallet not connected");
+      }
+
+      console.log("[E2E] Making payment to", targetUrl);
+      
+      try {
+        // First, call the endpoint without payment to get the 402 response with payment details
+        const proxyUrl = `/api/x402-proxy/e2e?target=${encodeURIComponent(targetUrl)}`;
+        console.log("[E2E] Fetching payment requirements from:", proxyUrl);
+        
+        const initialResponse = await fetch(proxyUrl, {
+          method: 'GET',
+        });
+
+        if (initialResponse.status !== 402) {
+          // If it's not 402, either it succeeded without payment or there's an error
+          if (initialResponse.ok) {
+            const data = await initialResponse.json();
+            return {
+              success: true,
+              result: data,
+            };
+          }
+          const errorData = await initialResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `Request failed with status ${initialResponse.status}`);
+        }
+
+        // Parse the 402 response to get payment requirements
+        const paymentRequired = await initialResponse.json();
+        console.log("[E2E] Payment required:", paymentRequired);
+
+        // Extract payment details
+        const accept = paymentRequired.accepts?.[0] || paymentRequired.payment;
+        if (!accept) {
+          throw new Error("Could not parse payment requirements from proxy");
+        }
+
+        const payTo = accept.payTo as Address;
+        const amount = accept.maxAmountRequired || accept.amount;
+        const token = accept.asset || accept.token || 'USDC';
+
+        console.log("[E2E] Payment details:", { payTo, amount, token });
+
+        // Create payment using viem signature
+        const account = walletClient.account;
+        if (!account) {
+          throw new Error("No account found in wallet");
+        }
+
+        // Create the payment message to sign
+        const paymentMessage = {
+          from: account.address,
+          to: payTo,
+          amount: amount.toString(),
+          token: token,
+          timestamp: Date.now().toString(),
+          nonce: Math.random().toString(36).substring(7),
+        };
+
+        console.log("[E2E] Creating payment signature...");
+
+        // Sign the payment message
+        const signature = await walletClient.signMessage({
+          account,
+          message: JSON.stringify(paymentMessage),
+        });
+
+        const payment = {
+          ...paymentMessage,
+          signature,
+        };
+
+        console.log("[E2E] Payment created, sending request with payment header...");
+
+        // Make the request again with the payment header
+        const paidResponse = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'x-payment': JSON.stringify(payment),
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!paidResponse.ok) {
+          const errorData = await paidResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `Request failed with status ${paidResponse.status}`);
+        }
+
+        const result = await paidResponse.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Payment was not successful');
+        }
+
+        console.log("[E2E] Payment successful:", result);
+
+        // Extract payment amount from bridge details
+        const paymentAmount = result.bridge?.amount || "0.01";
+        const targetChain = result.bridge?.toChain || "unknown";
+
+        // Log transaction to database
+        await db.logTransaction({
+          guardId: dbGuardId,
+          amount: paymentAmount,
+          recipient: targetUrl,
+          endpointUsed: targetUrl,
+          status: 'success',
+          txHash: result.bridge?.txHash || '0xe2e' + Date.now(),
+        });
+
+        // Update local state
+        const newBalance = (parseFloat(guardData.balance) - parseFloat(paymentAmount)).toFixed(2);
+        const newDailySpent = (parseFloat(guardData.dailySpent) + parseFloat(paymentAmount)).toFixed(2);
+        const newTotalSpent = (parseFloat(guardData.totalSpent) + parseFloat(paymentAmount)).toFixed(2);
+
+        setGuardData({
+          ...guardData,
+          balance: newBalance,
+          dailySpent: newDailySpent,
+          totalSpent: newTotalSpent,
+          remainingBudget: (parseFloat(guardData.dailyLimit) - parseFloat(newDailySpent)).toFixed(2),
+        });
+
+        // Add transaction to list
+        setTransactions(prev => [{
+          wallet: guardAddress,
+          recipient: targetUrl,
+          amount: paymentAmount,
+          endpoint: targetUrl,
+          status: 'success',
+          timestamp: Math.floor(Date.now() / 1000),
+          txHash: result.bridge?.txHash,
+          explorerUrl: result.bridge?.explorerUrl,
+        }, ...prev]);
+
+        return {
+          success: true,
+          result,
+          txHash: result.bridge?.txHash,
+          explorerUrl: result.bridge?.explorerUrl,
+        };
+      } catch (err: unknown) {
+        console.error("[E2E] Payment failed:", err);
+        const errorMessage = err instanceof Error ? err.message : "Payment failed";
+        
+        // Log failed transaction
+        await db.logTransaction({
+          guardId: dbGuardId,
+          amount: "0.00",
+          recipient: targetUrl,
+          endpointUsed: targetUrl,
+          status: 'failed',
+          errorMessage,
+          txHash: '0xfailed' + Date.now(),
+        });
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+    },
+    [guardAddress, dbGuardId, guardData, walletClient]
+  );
+
   return {
     guardData,
     pendingPayments,
@@ -469,6 +654,7 @@ export function useGuard(guardAddress?: Address) {
     fund,
     withdraw,
     withdrawAll,
+    makeE2EPayment,
   };
 }
 
@@ -523,7 +709,7 @@ export function useUserGuards() {
 // ===== useCreateGuard Hook =====
 
 export function useCreateGuard() {
-  const { address } = useWeb3();
+  const { address, walletClient } = useWeb3();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -539,20 +725,30 @@ export function useCreateGuard() {
         return null;
       }
 
+      if (!walletClient) {
+        setError("Wallet client not available");
+        return null;
+      }
+
       setIsCreating(true);
       setError(null);
 
       try {
-        console.log("[DB] Creating guard");
+        console.log("[Guard] Creating guard - this would deploy a real contract");
+        
+        // TODO: Replace this with actual contract deployment
+        // For now, using the connected wallet address as the guard address
+        // In production, this would deploy a Guard contract and return its address
+        const newGuardAddress = address; // Temporary: use user's address
+        
+        console.warn("[Guard] WARNING: Using wallet address as guard address (temporary)");
+        console.warn("[Guard] In production, deploy a real Guard contract here");
         
         // Ensure user exists
         let user = await db.getUser(undefined, address);
         if (!user) {
           user = await db.createUser(`privy-${address}`, address);
         }
-        
-        // Generate a mock guard address (in production this would come from contract deployment)
-        const newGuardAddress = `0x${Date.now().toString(16).padStart(40, '0')}` as Address;
         
         // Create guard in database
         await db.createGuard({
@@ -576,7 +772,7 @@ export function useCreateGuard() {
         setIsCreating(false);
       }
     },
-    [address]
+    [address, walletClient]
   );
 
   return { createGuard, isCreating, error };
